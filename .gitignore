@@ -1,0 +1,25 @@
+# Local Python environment
+.venv/
+
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.zip
+
+# Operating system and editor files
+.DS_Store
+.idea/
+.vscode/
