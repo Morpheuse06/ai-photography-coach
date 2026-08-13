@@ -63,7 +63,7 @@ class AnalysisEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["metadata"]["provider"], "mock")
-        self.assertEqual(body["metadata"]["prompt_version"], "photography-coach-v1.0")
+        self.assertEqual(body["metadata"]["prompt_version"], "photography-coach-v1.1")
         self.assertEqual(body["metadata"]["image"]["media_type"], "image/png")
         self.assertEqual(body["metadata"]["image"]["width"], 16)
         self.assertEqual(len(body["report"]["priority_actions"]), 3)

@@ -9,6 +9,9 @@
 # Private local evaluation photos
 Photos/
 
+# Model reports may describe private photos and can be regenerated locally
+evals/results/
+
 # Python-generated files
 __pycache__/
 *.py[cod]

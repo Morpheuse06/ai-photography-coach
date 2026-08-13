@@ -109,6 +109,30 @@ npm run build
 npm test
 ```
 
+## 本地 Prompt 评测
+
+测试照片保存在被 Git 忽略的 `Photos/` 中，仓库只记录不含图片内容的
+数据集清单。运行器会先验证文件路径和 SHA-256 指纹，再逐张调用当前配置的
+Provider，并在每张完成后保存本地快照：
+
+```bash
+MODEL_TIMEOUT_SECONDS=90 python -m photography_coach.evals.runner \
+  evals/datasets/0813.json \
+  --output evals/results/0813-v1.1.json
+```
+
+若部分请求超时、限流或返回异常结构，可跳过已有成功项，只重试失败项：
+
+```bash
+MODEL_TIMEOUT_SECONDS=90 python -m photography_coach.evals.runner \
+  evals/datasets/0813.json \
+  --output evals/results/0813-v1.1.json \
+  --resume
+```
+
+`evals/results/` 可能包含对私人照片的文字描述，因此也被 Git 忽略。评测用
+90 秒超时不会改变网页端 `.env` 中的默认请求超时。
+
 ## 主要目录
 
 ```text

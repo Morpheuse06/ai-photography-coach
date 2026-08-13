@@ -1,0 +1,94 @@
+{
+  "dataset_id": "0813",
+  "description": "Eleven local photos selected for the first repeatable Prompt evaluation.",
+  "cases": [
+    {
+      "case_id": "0813-01",
+      "image_path": "Photos/0813/01-bubble-chair-lakeside.jpg",
+      "sha256": "0089d98959d81abfddc3f3838776ed013d0ad99463245970a567e4fdd7da12fd",
+      "category": "environmental_portrait",
+      "intent": null,
+      "tags": ["portrait", "silhouette", "reflection", "water", "clouds"]
+    },
+    {
+      "case_id": "0813-02",
+      "image_path": "Photos/0813/02-sunlight-willow-lake.jpg",
+      "sha256": "ffef80136199d53ddd8432cbee144796d6fe9c045640c4510b63913ba5343501",
+      "category": "landscape",
+      "intent": null,
+      "tags": ["willow", "sunlight", "water", "reflection", "backlight"]
+    },
+    {
+      "case_id": "0813-03",
+      "image_path": "Photos/0813/03-portrait-red-wish-tags.jpg",
+      "sha256": "7ac7211b675cdee8a948e8ae2a09b8c874bbf95dfc6caff68bdf6e90b33affef",
+      "category": "environmental_portrait",
+      "intent": null,
+      "tags": ["portrait", "night", "red-tags", "mixed-light", "gesture"]
+    },
+    {
+      "case_id": "0813-04",
+      "image_path": "Photos/0813/04-old-alley-highrise.jpg",
+      "sha256": "c4d58ada4fbcd8d9371bc73862b28cb8699a10f2d2a0bc8fac9d56e762ab1637",
+      "category": "urban",
+      "intent": null,
+      "tags": ["alley", "highrise", "architecture", "contrast", "leading-lines"]
+    },
+    {
+      "case_id": "0813-05",
+      "image_path": "Photos/0813/05-portrait-pink-roses.jpg",
+      "sha256": "1a04b57eb1c3c67efaa81dbc53b50652b1b1dfc5081ab1684339aeee2b39bc84",
+      "category": "portrait",
+      "intent": null,
+      "tags": ["portrait", "flowers", "pink", "window-light", "indoor"]
+    },
+    {
+      "case_id": "0813-06",
+      "image_path": "Photos/0813/06-pink-flowers-blue-sky.jpg",
+      "sha256": "1e0e533080c43f33f848037df6b34ec3bcd51002fe4a3da0df2fc1e9c9dc2b10",
+      "category": "nature",
+      "intent": null,
+      "tags": ["flowers", "branch", "blue-sky", "shallow-depth", "negative-space"]
+    },
+    {
+      "case_id": "0813-07",
+      "image_path": "Photos/0813/07-sidewalk-portrait-black-dress.jpg",
+      "sha256": "caae3263ea3d45ed4bde2d2e1609ec4eac9d12309d98ee225b6154c2789f192f",
+      "category": "environmental_portrait",
+      "intent": null,
+      "tags": ["portrait", "sidewalk", "black-dress", "daylight", "leading-lines"]
+    },
+    {
+      "case_id": "0813-08",
+      "image_path": "Photos/0813/08-sunset-tree-lined-walkway.jpg",
+      "sha256": "28c49ce74b83ddd1c548277f94f21c0da627289819cfca9172d7f4334338c90e",
+      "category": "urban",
+      "intent": null,
+      "tags": ["sunset", "walkway", "trees", "buildings", "high-contrast"]
+    },
+    {
+      "case_id": "0813-09",
+      "image_path": "Photos/0813/09-hand-pointing-clouds.jpg",
+      "sha256": "75149e373968ae3bc2bb2ff2cc3211075c963b3a7b606b98c7575b8bb21beb18",
+      "category": "abstract",
+      "intent": null,
+      "tags": ["hand", "clouds", "blue-sky", "foreground-blur", "minimal"]
+    },
+    {
+      "case_id": "0813-10",
+      "image_path": "Photos/0813/10-stair-portrait-pink-outfit.jpg",
+      "sha256": "b421f469ce955facd14a4c5b23789a2fac86a0e45f34b0aa4fb3d5ecd76c0c0e",
+      "category": "portrait",
+      "intent": null,
+      "tags": ["portrait", "stairs", "pink", "hat", "cool-tone"]
+    },
+    {
+      "case_id": "0813-11",
+      "image_path": "Photos/0813/11-sunset-construction-silhouette.jpg",
+      "sha256": "c3c3bd16cb1240aa08153cdcc4c924f460ce4b7fa897a82f820a730908163930",
+      "category": "urban",
+      "intent": null,
+      "tags": ["sunset", "construction", "silhouette", "cranes", "orange-sky"]
+    }
+  ]
+}
