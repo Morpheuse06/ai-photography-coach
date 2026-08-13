@@ -8,6 +8,8 @@ describe('App', () => {
   it('requires a valid photo and privacy consent before analysis', async () => {
     const user = userEvent.setup()
     render(<App />)
+    expect(screen.getByRole('heading', { name: '拍好下一张' })).toBeInTheDocument()
+    expect(screen.queryByText('拍好下一张。')).not.toBeInTheDocument()
     const submit = screen.getByRole('button', { name: '开始分析' })
     expect(submit).toBeDisabled()
 

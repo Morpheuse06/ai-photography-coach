@@ -78,10 +78,10 @@ cp .env.example .env
 在 `.env` 中配置：
 
 ```dotenv
-MODEL_PROVIDER=responses_compatible
+MODEL_PROVIDER=dashscope
 MODEL_API_KEY=你的本地密钥
-MODEL_NAME=gpt-5.6-terra
-MODEL_BASE_URL=
+MODEL_NAME=qwen3.7-plus
+MODEL_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
 
 使用百炼 Qwen 时，将 `MODEL_PROVIDER` 设置为 `dashscope`，填写本地 API Key、模型名称和控制台提供的区域地址。使用 Responses API 兼容服务时设置为 `responses_compatible`。

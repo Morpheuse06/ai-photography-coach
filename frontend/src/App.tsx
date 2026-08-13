@@ -87,7 +87,7 @@ function App() {
       <section className="hero" id="top" aria-labelledby="hero-title">
         <div className="hero-copy">
           <p className="eyebrow">你的私人摄影复盘伙伴</p>
-          <h1 id="hero-title">拍好下一张。</h1>
+          <h1 id="hero-title">拍好下一张</h1>
           <p className="intro">
             上传一张照片，获得基于真实画面证据的摄影指导，以及下一次拍摄可以立刻执行的练习。
           </p>
