@@ -19,6 +19,9 @@ build/
 dist/
 *.zip
 
+# Frontend dependencies and generated output
+node_modules/
+
 # Operating system and editor files
 .DS_Store
 .idea/

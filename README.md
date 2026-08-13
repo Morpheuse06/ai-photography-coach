@@ -1,6 +1,6 @@
 # AI 摄影教练 Agent
 
-一个面向摄影学习者的后端 V1：上传一张 JPEG、PNG 或 WebP 照片后，返回基于可见证据的结构化摄影指导，而不是只判断“好不好看”。
+一个面向摄影学习者的全栈 V1：上传一张 JPEG、PNG 或 WebP 照片后，返回基于可见证据的结构化摄影指导。
 
 ## V1 能力
 
@@ -13,6 +13,7 @@
 - 可配置的 Responses-compatible 多模态与 Structured Outputs 适配器
 - 超时、限流、模型不可用、异常输出和请求错误的统一响应
 - 记录 provider、model、Prompt 版本、耗时和 token 用量，不记录图片内容
+- React + TypeScript 单页前端，支持照片预览、隐私确认和完整报告展示
 
 ## 请求流程
 
@@ -46,6 +47,16 @@ uvicorn photography_coach.main:app --reload
 
 默认使用 Mock Provider，不需要 API Key，也不会产生模型费用。
 
+启动前端（新终端）：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打开 <http://127.0.0.1:5173>。开发服务器会把 `/api` 请求转发给本地 FastAPI。
+
 ## 调用分析接口
 
 ```bash
@@ -73,7 +84,7 @@ MODEL_NAME=gpt-5.6-terra
 MODEL_BASE_URL=
 ```
 
-`MODEL_PROVIDER` 应设置为 `responses_compatible`。`MODEL_BASE_URL` 留空时使用 OpenAI 官方端点；也可以填写支持相同 Responses API 请求形状的兼容服务地址，并把 `MODEL_NAME` 改成该服务提供的多模态模型 ID。
+使用百炼 Qwen 时，将 `MODEL_PROVIDER` 设置为 `dashscope`，填写本地 API Key、模型名称和控制台提供的区域地址。使用 Responses API 兼容服务时设置为 `responses_compatible`。
 
 业务层依赖的是 `PhotographyProvider` 协议，而不是某家模型厂商。对于不兼容 Responses API 的服务，只需新增一个 Provider 适配器，实现同一个 `analyze()` 方法；路由、验证、业务服务和报告 Schema 不需要修改。
 
@@ -89,6 +100,15 @@ python -m unittest discover -s tests -v
 
 所有真实模型适配器测试都使用模拟客户端，不会访问外部 API，也不会消耗 token。
 
+前端检查：
+
+```bash
+cd frontend
+npm run lint
+npm run build
+npm test
+```
+
 ## 主要目录
 
 ```text
@@ -102,6 +122,12 @@ src/photography_coach/
 ├── image_validation.py  # 图片安全验证
 ├── main.py              # FastAPI 应用入口
 └── prompts.py           # Prompt 内容与版本
+
+frontend/src/
+├── components/          # 上传表单与报告展示组件
+├── api.ts               # FastAPI 请求和错误翻译
+├── types.ts             # 与 Pydantic 响应对应的 TypeScript 类型
+└── App.tsx              # 单页流程状态与页面组装
 ```
 
 ## 隐私与安全边界
@@ -114,4 +140,4 @@ src/photography_coach/
 
 ## 暂未包含
 
-React 前端、数据库、用户系统、历史趋势、RAG、自动修图、Docker 和复杂 Agent 工作流将在后续版本按真实需求加入。
+数据库、用户系统、历史趋势、RAG、自动修图、Docker 和复杂 Agent 工作流将在后续版本按真实需求加入。
