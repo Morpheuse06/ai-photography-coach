@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    model_provider: Literal["mock", "responses_compatible"] = "mock"
+    model_provider: Literal["mock", "responses_compatible", "dashscope"] = "mock"
     model_api_key: SecretStr | None = None
     model_name: str = "gpt-5.6-terra"
     model_base_url: str | None = None
