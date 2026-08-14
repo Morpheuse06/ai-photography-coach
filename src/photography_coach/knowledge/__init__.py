@@ -1,5 +1,11 @@
 """Contracts and utilities for the photography knowledge base."""
 
+from photography_coach.knowledge.embeddings import (
+    DeterministicEmbeddingProvider,
+    EmbeddingProvider,
+    EmbeddingResult,
+    EmbeddingVector,
+)
 from photography_coach.knowledge.retrieval import (
     PhotoObservation,
     RetrievalPlan,
@@ -16,6 +22,10 @@ from photography_coach.knowledge.schemas import (
 )
 
 __all__ = [
+    "DeterministicEmbeddingProvider",
+    "EmbeddingProvider",
+    "EmbeddingResult",
+    "EmbeddingVector",
     "KnowledgeChunk",
     "KnowledgeCorpus",
     "KnowledgeDimension",
