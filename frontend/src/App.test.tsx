@@ -62,6 +62,8 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: '先做这三件事' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '窗边人像练习' })).toBeInTheDocument()
     expect(screen.getAllByText('mock-photography-coach-v1')).toHaveLength(2)
+    expect(screen.getByText('deterministic-character-bigram-rerank-v1')).toBeInTheDocument()
+    expect(screen.getByText('2 个')).toBeInTheDocument()
     expect(screen.getAllByText('未提供')).toHaveLength(3)
   })
 

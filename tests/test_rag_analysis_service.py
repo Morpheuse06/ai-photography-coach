@@ -123,6 +123,23 @@ class RagAnalysisServiceTests(unittest.IsolatedAsyncioTestCase):
             result.response.metadata.prompt_version,
             "photography-coach-rag-v1.1",
         )
+        retrieval = result.response.metadata.retrieval
+        self.assertIsNotNone(retrieval)
+        assert retrieval is not None
+        self.assertEqual(
+            retrieval.knowledge_source_id,
+            "ai-photography-coach-handbook",
+        )
+        self.assertEqual(retrieval.knowledge_source_version, "1.0")
+        self.assertEqual(
+            retrieval.planner_prompt_version,
+            "photography-retrieval-v1.3",
+        )
+        self.assertEqual(
+            retrieval.reranker_model,
+            "deterministic-character-bigram-rerank-v1",
+        )
+        self.assertGreaterEqual(len(retrieval.retrieved_chunk_ids), 5)
 
     async def test_sums_planner_and_report_model_usage(self) -> None:
         service = RagAnalysisService(

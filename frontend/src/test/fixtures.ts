@@ -46,5 +46,19 @@ export const analysisFixture: AnalysisResponse = {
       output_tokens: null,
       total_tokens: null,
     },
+    retrieval: {
+      knowledge_source_id: 'ai-photography-coach-handbook',
+      knowledge_source_version: '1.0',
+      planner_model: 'mock-photography-retrieval-v1',
+      planner_prompt_version: 'photography-retrieval-v1.3',
+      planner_attempts: 1,
+      embedding_model: 'deterministic-char-bigram-v1',
+      reranker_model: 'deterministic-character-bigram-rerank-v1',
+      latency_ms: 320,
+      retrieved_chunk_ids: [
+        'ai-photography-coach-handbook-composition-frame-edges',
+        'ai-photography-coach-handbook-lighting-contrast-silhouette',
+      ],
+    },
   },
 }

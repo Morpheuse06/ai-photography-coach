@@ -50,6 +50,17 @@ export type AnalysisMetadata = {
     output_tokens: number | null
     total_tokens: number | null
   }
+  retrieval?: {
+    knowledge_source_id: string
+    knowledge_source_version: string
+    planner_model: string
+    planner_prompt_version: string
+    planner_attempts: number
+    embedding_model: string
+    reranker_model: string
+    latency_ms: number
+    retrieved_chunk_ids: string[]
+  } | null
 }
 
 export type AnalysisResponse = {

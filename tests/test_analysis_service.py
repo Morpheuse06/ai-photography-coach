@@ -53,6 +53,7 @@ class AnalysisServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.metadata.provider, "alternative_vendor")
         self.assertEqual(response.metadata.model, "alternative-vision-model")
+        self.assertIsNone(response.metadata.retrieval)
 
 
 if __name__ == "__main__":

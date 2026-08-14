@@ -22,6 +22,22 @@ class ModelUsage(BaseModel):
     total_tokens: int | None = Field(default=None, ge=0)
 
 
+class RetrievalMetadata(BaseModel):
+    """Traceable, non-secret information about one RAG retrieval run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    knowledge_source_id: str
+    knowledge_source_version: str
+    planner_model: str
+    planner_prompt_version: str
+    planner_attempts: int = Field(ge=1)
+    embedding_model: str
+    reranker_model: str
+    latency_ms: int = Field(ge=0)
+    retrieved_chunk_ids: list[str] = Field(min_length=1, max_length=10)
+
+
 class AnalysisMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -31,6 +47,7 @@ class AnalysisMetadata(BaseModel):
     latency_ms: int = Field(ge=0)
     image: ImageMetadata
     usage: ModelUsage
+    retrieval: RetrievalMetadata | None = None
 
 
 class AnalysisResponse(BaseModel):

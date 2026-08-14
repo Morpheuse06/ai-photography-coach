@@ -102,7 +102,25 @@ function isAnalysisResponse(value: unknown): value is AnalysisResponse {
     value.report.priority_actions.length === 3 &&
     isRecord(value.report.next_shooting_exercise) &&
     typeof value.metadata.provider === 'string' &&
-    typeof value.metadata.model === 'string'
+    typeof value.metadata.model === 'string' &&
+    isRetrievalMetadata(value.metadata.retrieval)
+  )
+}
+
+function isRetrievalMetadata(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  return (
+    isRecord(value) &&
+    typeof value.knowledge_source_id === 'string' &&
+    typeof value.knowledge_source_version === 'string' &&
+    typeof value.planner_model === 'string' &&
+    typeof value.planner_prompt_version === 'string' &&
+    typeof value.planner_attempts === 'number' &&
+    typeof value.embedding_model === 'string' &&
+    typeof value.reranker_model === 'string' &&
+    typeof value.latency_ms === 'number' &&
+    Array.isArray(value.retrieved_chunk_ids) &&
+    value.retrieved_chunk_ids.every((item) => typeof item === 'string')
   )
 }
 

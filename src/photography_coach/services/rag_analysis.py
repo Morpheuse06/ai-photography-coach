@@ -14,6 +14,7 @@ from photography_coach.schemas.analysis import (
     AnalysisResponse,
     ImageMetadata,
     ModelUsage,
+    RetrievalMetadata,
 )
 from photography_coach.services.rag_context import PreparedKnowledge, RagContextService
 
@@ -72,6 +73,7 @@ class RagAnalysisService:
             raise ModelTimeoutError("RAG photography report generation timed out.") from exc
 
         latency_ms = round((perf_counter() - started_at) * 1_000)
+        first_chunk = prepared.retrieval.chunks[0].chunk
         response = AnalysisResponse(
             report=provider_result.report,
             metadata=AnalysisMetadata(
@@ -98,6 +100,22 @@ class RagAnalysisService:
                         prepared.total_tokens,
                         provider_result.total_tokens,
                     ),
+                ),
+                retrieval=RetrievalMetadata(
+                    knowledge_source_id=first_chunk.source_id,
+                    knowledge_source_version=first_chunk.source_version,
+                    planner_model=prepared.planner_model,
+                    planner_prompt_version=prepared.planner_prompt_version,
+                    planner_attempts=prepared.planner_attempts,
+                    embedding_model=prepared.retrieval.embedding_model,
+                    reranker_model=(
+                        prepared.retrieval.reranker_model or "not-provided"
+                    ),
+                    latency_ms=prepared.latency_ms,
+                    retrieved_chunk_ids=[
+                        match.chunk.chunk_id
+                        for match in prepared.retrieval.chunks
+                    ],
                 ),
             ),
         )

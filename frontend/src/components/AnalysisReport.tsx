@@ -117,6 +117,19 @@ export const AnalysisReport = forwardRef<HTMLElement, AnalysisReportProps>(
             <div><dt>输入 Token</dt><dd>{formatUsage(metadata.usage.input_tokens)}</dd></div>
             <div><dt>输出 Token</dt><dd>{formatUsage(metadata.usage.output_tokens)}</dd></div>
             <div><dt>总 Token</dt><dd>{formatUsage(metadata.usage.total_tokens)}</dd></div>
+            {metadata.retrieval && (
+              <>
+                <div>
+                  <dt>知识库</dt>
+                  <dd>{metadata.retrieval.knowledge_source_id} v{metadata.retrieval.knowledge_source_version}</dd>
+                </div>
+                <div><dt>检索规划</dt><dd>{metadata.retrieval.planner_model}</dd></div>
+                <div><dt>Embedding</dt><dd>{metadata.retrieval.embedding_model}</dd></div>
+                <div><dt>Reranker</dt><dd>{metadata.retrieval.reranker_model}</dd></div>
+                <div><dt>检索耗时</dt><dd>{metadata.retrieval.latency_ms} ms</dd></div>
+                <div><dt>命中知识块</dt><dd>{metadata.retrieval.retrieved_chunk_ids.length} 个</dd></div>
+              </>
+            )}
           </dl>
         </details>
       </section>
