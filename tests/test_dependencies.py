@@ -1,12 +1,20 @@
 """Tests for configuration-driven service construction."""
 
 import unittest
-from unittest.mock import patch
+from pathlib import Path
+import tempfile
+from unittest.mock import AsyncMock, patch
 
 from photography_coach.config import Settings, get_settings
-from photography_coach.dependencies import get_analysis_service
+from photography_coach.dependencies import (
+    build_rag_analysis_service,
+    get_analysis_service,
+)
 from photography_coach.errors import ModelUnavailableError
 from photography_coach.providers.dashscope import DashScopePhotographyProvider
+from photography_coach.providers.dashscope_embedding import DashScopeEmbeddingProvider
+from photography_coach.providers.dashscope_planner import DashScopeRetrievalPlanner
+from photography_coach.providers.mock import MockPhotographyProvider
 
 
 class DependencyFactoryTests(unittest.TestCase):
@@ -44,6 +52,80 @@ class DependencyFactoryTests(unittest.TestCase):
         ):
             with self.assertRaises(ModelUnavailableError):
                 get_analysis_service()
+
+
+class RagDependencyFactoryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_builds_complete_mock_rag_service_without_external_calls(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings(
+                _env_file=None,
+                model_provider="mock",
+                rag_enabled=True,
+                embedding_dimensions=128,
+                chroma_path=Path(directory),
+                knowledge_corpus_path=(
+                    project_root
+                    / "knowledge/chunks/ai-photography-coach-handbook.json"
+                ),
+            )
+
+            service = await build_rag_analysis_service(settings)
+
+            self.assertIsInstance(service._provider, MockPhotographyProvider)
+            self.assertEqual(
+                service._rag_context_service._index._embedding_provider.name,
+                "deterministic",
+            )
+
+    async def test_refuses_to_build_when_rag_switch_is_off(self) -> None:
+        settings = Settings(_env_file=None, rag_enabled=False)
+
+        with self.assertRaisesRegex(ModelUnavailableError, "not enabled"):
+            await build_rag_analysis_service(settings)
+
+    async def test_builds_dashscope_rag_adapters_from_settings(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        settings = Settings(
+            _env_file=None,
+            model_provider="dashscope",
+            model_api_key="test-key",
+            model_name="qwen3-vl-flash",
+            model_base_url="https://workspace.example/compatible-mode/v1",
+            rag_enabled=True,
+            rag_planner_model="qwen3-vl-flash",
+            embedding_model="qwen3.7-text-embedding",
+            embedding_dimensions=1_024,
+            knowledge_corpus_path=(
+                project_root / "knowledge/chunks/ai-photography-coach-handbook.json"
+            ),
+        )
+        fake_index = AsyncMock()
+
+        with patch(
+            "photography_coach.dependencies.ChromaKnowledgeIndex.build",
+            new=AsyncMock(return_value=fake_index),
+        ) as build_index:
+            service = await build_rag_analysis_service(settings)
+
+        embedding_provider = build_index.await_args.args[1]
+        planner = service._rag_context_service._planner
+        self.assertIsInstance(service._provider, DashScopePhotographyProvider)
+        self.assertIsInstance(planner, DashScopeRetrievalPlanner)
+        self.assertIsInstance(embedding_provider, DashScopeEmbeddingProvider)
+        self.assertEqual(embedding_provider.model, "qwen3.7-text-embedding")
+        self.assertEqual(embedding_provider.dimensions, 1_024)
+
+    async def test_dashscope_rag_requires_api_key_before_external_work(self) -> None:
+        settings = Settings(
+            _env_file=None,
+            model_provider="dashscope",
+            model_api_key=None,
+            rag_enabled=True,
+        )
+
+        with self.assertRaises(ModelUnavailableError):
+            await build_rag_analysis_service(settings)
 
 
 if __name__ == "__main__":

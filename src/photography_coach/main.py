@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from photography_coach.api.routes import router
+from photography_coach.api.routes import rag_router, router
 from photography_coach.config import get_settings
 from photography_coach.errors import AppError
 from photography_coach.logging_config import configure_logging
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
         description="Structured, evidence-based coaching for one uploaded photo.",
     )
     application.include_router(router)
+    application.include_router(rag_router)
     application.add_api_route(
         "/health",
         health_check,

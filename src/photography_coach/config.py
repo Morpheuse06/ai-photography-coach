@@ -1,6 +1,7 @@
 """Environment-backed application configuration."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr
@@ -22,6 +23,16 @@ class Settings(BaseSettings):
     model_base_url: str | None = None
     model_timeout_seconds: float = Field(default=45.0, gt=0, le=120)
     model_max_retries: int = Field(default=2, ge=0, le=3)
+    rag_enabled: bool = False
+    rag_planner_model: str | None = None
+    rag_context_timeout_seconds: float = Field(default=90.0, gt=0, le=240)
+    embedding_model: str = "qwen3.7-text-embedding"
+    embedding_dimensions: int = Field(default=1_024, ge=64, le=2_560)
+    embedding_max_batch_size: int = Field(default=20, ge=1, le=100)
+    chroma_path: Path = Path("data/chroma")
+    knowledge_corpus_path: Path = Path(
+        "knowledge/chunks/ai-photography-coach-handbook.json"
+    )
     log_level: str = "INFO"
 
 

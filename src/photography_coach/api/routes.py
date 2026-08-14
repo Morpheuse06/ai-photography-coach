@@ -4,19 +4,25 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from photography_coach.dependencies import get_analysis_service
+from photography_coach.dependencies import (
+    get_analysis_service,
+    get_rag_analysis_service,
+)
 from photography_coach.errors import InvalidImageError, PayloadTooLargeError
 from photography_coach.image_validation import (
     MAX_IMAGE_BYTES,
     ImageTooLargeError,
     ImageValidationError,
+    ValidatedImage,
     validate_image,
 )
 from photography_coach.schemas.analysis import AnalysisResponse, ErrorResponse
 from photography_coach.services.analysis import AnalysisService
+from photography_coach.services.rag_analysis import RagAnalysisService
 
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
+rag_router = APIRouter(prefix="/api/v2", tags=["rag-analysis"])
 
 ANALYSIS_ERROR_RESPONSES = {
     400: {"model": ErrorResponse, "description": "Invalid image content."},
@@ -46,6 +52,38 @@ async def analyze_photo(
     ] = None,
 ) -> AnalysisResponse:
     """Validate one uploaded photo and return structured coaching feedback."""
+    image_bytes, image = await _read_validated_photo(photo)
+    normalized_intent = intent.strip() if intent and intent.strip() else None
+    return await service.analyze(image_bytes, image, normalized_intent)
+
+
+@rag_router.post(
+    "/analyze",
+    response_model=AnalysisResponse,
+    responses=ANALYSIS_ERROR_RESPONSES,
+)
+async def analyze_photo_with_rag(
+    photo: Annotated[
+        UploadFile,
+        File(description="One JPEG, PNG, or WebP photo, up to 10 MiB."),
+    ],
+    service: Annotated[RagAnalysisService, Depends(get_rag_analysis_service)],
+    intent: Annotated[
+        str | None,
+        Form(max_length=1_000, description="Optional shooting intent."),
+    ] = None,
+) -> AnalysisResponse:
+    """Validate a photo and analyze it with retrieved photography knowledge."""
+
+    image_bytes, image = await _read_validated_photo(photo)
+    normalized_intent = intent.strip() if intent and intent.strip() else None
+    result = await service.analyze(image_bytes, image, normalized_intent)
+    return result.response
+
+
+async def _read_validated_photo(photo: UploadFile) -> tuple[bytes, ValidatedImage]:
+    """Read, close, and validate one FastAPI upload for either API version."""
+
     try:
         image_bytes = await photo.read(MAX_IMAGE_BYTES + 1)
         image = validate_image(image_bytes, photo.content_type)
@@ -55,6 +93,4 @@ async def analyze_photo(
         raise InvalidImageError(str(exc)) from exc
     finally:
         await photo.close()
-
-    normalized_intent = intent.strip() if intent and intent.strip() else None
-    return await service.analyze(image_bytes, image, normalized_intent)
+    return image_bytes, image
