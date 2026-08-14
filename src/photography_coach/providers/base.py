@@ -27,6 +27,7 @@ class PhotographyProvider(Protocol):
         image_bytes: bytes,
         media_type: str,
         shooting_intent: str | None,
+        knowledge_context: str | None = None,
     ) -> ProviderResult:
         """Analyze one validated image and return a structured report."""
         ...

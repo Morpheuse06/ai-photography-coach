@@ -56,6 +56,7 @@ class DashScopePhotographyProvider:
         image_bytes: bytes,
         media_type: str,
         shooting_intent: str | None,
+        knowledge_context: str | None = None,
     ) -> ProviderResult:
         image_base64 = base64.b64encode(image_bytes).decode("ascii")
         image_url = f"data:{media_type};base64,{image_base64}"
@@ -73,7 +74,10 @@ class DashScopePhotographyProvider:
                         "content": [
                             {
                                 "type": "text",
-                                "text": build_user_prompt(shooting_intent),
+                                "text": build_user_prompt(
+                                    shooting_intent,
+                                    knowledge_context,
+                                ),
                             },
                             {
                                 "type": "image_url",

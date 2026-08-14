@@ -21,8 +21,9 @@ class MockPhotographyProvider:
         image_bytes: bytes,
         media_type: str,
         shooting_intent: str | None,
+        knowledge_context: str | None = None,
     ) -> ProviderResult:
-        del image_bytes, media_type, shooting_intent
+        del image_bytes, media_type, shooting_intent, knowledge_context
 
         report = PhotographyReport(
             dimensions=PhotographyDimensions(
