@@ -15,6 +15,7 @@ from photography_coach.knowledge.search import (
     RetrievalResult,
     _merge_ranked_matches,
     build_chunk_embedding_text,
+    validate_retrieval_overrides,
 )
 
 
@@ -92,7 +93,14 @@ class ChromaKnowledgeIndex:
 
         return cls(collection=collection, embedding_provider=embedding_provider)
 
-    async def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
+    async def retrieve(
+        self,
+        plan: RetrievalPlan,
+        *,
+        candidate_k_per_query: int | None = None,
+        max_total_chunks: int | None = None,
+    ) -> RetrievalResult:
+        validate_retrieval_overrides(candidate_k_per_query, max_total_chunks)
         ranked_by_query: list[
             tuple[RetrievalQuery, list[tuple[KnowledgeChunk, float]]]
         ] = []
@@ -108,7 +116,7 @@ class ChromaKnowledgeIndex:
             query_result = await asyncio.to_thread(
                 self._collection.query,
                 query_embeddings=[list(embedding_result.vectors[0])],
-                n_results=query.top_k,
+                n_results=candidate_k_per_query or query.top_k,
                 where={"dimension": query.dimension},
                 include=["metadatas", "distances"],
             )
@@ -119,7 +127,7 @@ class ChromaKnowledgeIndex:
         return RetrievalResult(
             chunks=_merge_ranked_matches(
                 ranked_by_query,
-                max_total_chunks=plan.max_total_chunks,
+                max_total_chunks=max_total_chunks or plan.max_total_chunks,
             ),
             embedding_provider=self._embedding_provider.name,
             embedding_model=self._embedding_provider.model,

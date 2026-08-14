@@ -10,12 +10,16 @@ from photography_coach.knowledge.retrieval import (
     RetrievalPlan,
     require_full_report_dimension_coverage,
 )
+from photography_coach.knowledge.reranking import DeterministicRerankingProvider
 from photography_coach.knowledge.search import (
     KnowledgeIndex,
     RetrievalResult,
 )
 from photography_coach.providers.planner import PlannerResult, RetrievalPlanner
 from photography_coach.retrieval_prompts import RETRIEVAL_PROMPT_VERSION
+from photography_coach.services.retrieval_reranking import (
+    RetrievalRerankingService,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,12 +47,20 @@ class RagContextService:
         planner: RetrievalPlanner,
         index: KnowledgeIndex,
         *,
+        reranking_service: RetrievalRerankingService | None = None,
+        candidate_k_per_query: int = 8,
         timeout_seconds: float,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if candidate_k_per_query < 1:
+            raise ValueError("candidate_k_per_query must be positive")
         self._planner = planner
         self._index = index
+        self._reranking_service = reranking_service or RetrievalRerankingService(
+            DeterministicRerankingProvider()
+        )
+        self._candidate_k_per_query = candidate_k_per_query
         self._timeout_seconds = timeout_seconds
 
     async def prepare(
@@ -77,9 +89,15 @@ class RagContextService:
             planner_prompt_version=RETRIEVAL_PROMPT_VERSION,
             planner_attempts=planner_result.attempts,
             latency_ms=round((perf_counter() - started_at) * 1_000),
-            input_tokens=planner_result.input_tokens,
+            input_tokens=_sum_optional(
+                planner_result.input_tokens,
+                retrieval.reranker_input_tokens,
+            ),
             output_tokens=planner_result.output_tokens,
-            total_tokens=planner_result.total_tokens,
+            total_tokens=_sum_optional(
+                planner_result.total_tokens,
+                retrieval.reranker_input_tokens,
+            ),
         )
 
     async def _plan_and_retrieve(
@@ -99,7 +117,17 @@ class RagContextService:
             raise ModelOutputError(
                 "Retrieval plan does not cover every report dimension."
             ) from exc
-        retrieval = await self._index.retrieve(planner_result.plan)
+        candidate_result = await self._index.retrieve(
+            planner_result.plan,
+            candidate_k_per_query=self._candidate_k_per_query,
+            max_total_chunks=(
+                self._candidate_k_per_query * len(planner_result.plan.queries)
+            ),
+        )
+        retrieval = await self._reranking_service.rerank(
+            planner_result.plan,
+            candidate_result,
+        )
         return planner_result, retrieval
 
 
@@ -128,3 +156,8 @@ def format_retrieval_context(retrieval: RetrievalResult) -> str:
         ],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _sum_optional(left: int | None, right: int | None) -> int | None:
+    values = [value for value in (left, right) if value is not None]
+    return sum(values) if values else None

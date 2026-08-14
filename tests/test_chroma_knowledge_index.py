@@ -114,6 +114,25 @@ class ChromaKnowledgeIndexTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(second_provider.query_calls, 1)
             self.assertEqual(len(result.chunks), 2)
 
+    async def test_candidate_limit_can_exceed_filtered_dimension_size(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            index = await ChromaKnowledgeIndex.build(
+                _corpus(),
+                CountingEmbeddingProvider(),
+                persist_path=Path(directory),
+            )
+
+            result = await index.retrieve(
+                _plan(),
+                candidate_k_per_query=8,
+                max_total_chunks=8,
+            )
+
+            self.assertEqual(len(result.chunks), 2)
+            self.assertTrue(
+                all(match.chunk.dimension == "lighting" for match in result.chunks)
+            )
+
     async def test_rejects_index_created_with_different_embedding_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)

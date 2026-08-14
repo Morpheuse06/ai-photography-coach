@@ -114,6 +114,8 @@ class RagAnalysisService:
                     "planner_attempts": prepared.planner_attempts,
                     "embedding_provider": prepared.retrieval.embedding_provider,
                     "embedding_model": prepared.retrieval.embedding_model,
+                    "reranker_provider": prepared.retrieval.reranker_provider,
+                    "reranker_model": prepared.retrieval.reranker_model,
                     "retrieved_chunk_ids": [
                         match.chunk.chunk_id for match in prepared.retrieval.chunks
                     ],

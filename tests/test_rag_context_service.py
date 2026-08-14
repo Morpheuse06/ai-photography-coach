@@ -7,6 +7,7 @@ import unittest
 
 from photography_coach.errors import ModelOutputError, ModelTimeoutError
 from photography_coach.knowledge.embeddings import DeterministicEmbeddingProvider
+from photography_coach.knowledge.reranking import RerankedItem, RerankResult
 from photography_coach.knowledge.schemas import KnowledgeCorpus
 from photography_coach.knowledge.search import InMemoryKnowledgeIndex
 from photography_coach.providers.mock_planner import MockRetrievalPlanner
@@ -14,6 +15,9 @@ from photography_coach.providers.planner import PlannerResult, RetrievalPlanner
 from photography_coach.services.rag_context import (
     RagContextService,
     format_retrieval_context,
+)
+from photography_coach.services.retrieval_reranking import (
+    RetrievalRerankingService,
 )
 
 
@@ -48,12 +52,29 @@ class RagContextServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertLessEqual(len(prepared.retrieval.chunks), 6)
+        self.assertEqual(
+            {match.chunk.dimension for match in prepared.retrieval.chunks},
+            {
+                "composition",
+                "lighting",
+                "color",
+                "subject_expression",
+                "visual_storytelling",
+            },
+        )
         self.assertEqual(prepared.planner_provider, "mock")
         self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.3")
         self.assertEqual(prepared.planner_attempts, 1)
         self.assertEqual(
             prepared.retrieval.embedding_model,
             "deterministic-char-bigram-v1",
+        )
+        self.assertEqual(prepared.retrieval.reranker_provider, "deterministic")
+        self.assertTrue(
+            all(
+                match.rerank_score is not None
+                for match in prepared.retrieval.chunks
+            )
         )
         self.assertGreaterEqual(prepared.latency_ms, 0)
 
@@ -85,6 +106,21 @@ class RagContextServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(rebuilt, prepared.context_text)
 
+    async def test_adds_reranker_usage_to_prepared_context_usage(self) -> None:
+        service = RagContextService(
+            MockRetrievalPlanner(),
+            await _index(),
+            reranking_service=RetrievalRerankingService(
+                FixedUsageReranker()
+            ),
+            timeout_seconds=1,
+        )
+
+        prepared = await service.prepare(b"image", "image/jpeg", None)
+
+        self.assertEqual(prepared.input_tokens, 50)
+        self.assertEqual(prepared.total_tokens, 50)
+
     async def test_rejects_non_positive_timeout(self) -> None:
         with self.assertRaisesRegex(ValueError, "positive"):
             RagContextService(
@@ -111,6 +147,21 @@ class PartialPlanner(MockRetrievalPlanner):
             update={"queries": result.plan.queries[:3]}
         )
         return PlannerResult(plan=partial_plan)
+
+
+class FixedUsageReranker:
+    name = "usage-test"
+    model = "usage-test-v1"
+
+    async def rerank(self, query, documents, *, top_n):
+        del query
+        return RerankResult(
+            items=tuple(
+                RerankedItem(index, 1.0 - index / len(documents))
+                for index in range(top_n)
+            ),
+            input_tokens=10,
+        )
 
 
 class SlowPlanner:

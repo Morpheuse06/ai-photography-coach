@@ -23,10 +23,13 @@ class RetrievedChunk:
     chunk: KnowledgeChunk
     score: float
     matched_query_ids: tuple[str, ...]
+    rerank_score: float | None = None
 
     def __post_init__(self) -> None:
         if not isfinite(self.score):
             raise ValueError("retrieval score must be finite")
+        if self.rerank_score is not None and not isfinite(self.rerank_score):
+            raise ValueError("rerank_score must be finite")
         if not self.matched_query_ids:
             raise ValueError("matched_query_ids cannot be empty")
 
@@ -39,12 +42,21 @@ class RetrievalResult:
     embedding_provider: str
     embedding_model: str
     embedding_dimensions: int
+    reranker_provider: str | None = None
+    reranker_model: str | None = None
+    reranker_input_tokens: int | None = None
 
 
 class KnowledgeIndex(Protocol):
     """Interface shared by in-memory and persistent vector indexes."""
 
-    async def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
+    async def retrieve(
+        self,
+        plan: RetrievalPlan,
+        *,
+        candidate_k_per_query: int | None = None,
+        max_total_chunks: int | None = None,
+    ) -> RetrievalResult:
         """Return bounded, deduplicated knowledge for one plan."""
         ...
 
@@ -103,8 +115,16 @@ class InMemoryKnowledgeIndex:
 
         return cls(entries=tuple(entries), embedding_provider=embedding_provider)
 
-    async def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
+    async def retrieve(
+        self,
+        plan: RetrievalPlan,
+        *,
+        candidate_k_per_query: int | None = None,
+        max_total_chunks: int | None = None,
+    ) -> RetrievalResult:
         """Execute planned searches, then deduplicate results in query order."""
+
+        validate_retrieval_overrides(candidate_k_per_query, max_total_chunks)
 
         ranked_by_query: list[tuple[RetrievalQuery, list[tuple[KnowledgeChunk, float]]]] = []
         for query in plan.queries:
@@ -117,14 +137,14 @@ class InMemoryKnowledgeIndex:
             matches = self._search_vector(
                 query_result.vectors[0],
                 dimension=query.dimension,
-                top_k=query.top_k,
+                top_k=candidate_k_per_query or query.top_k,
             )
             ranked_by_query.append((query, matches))
 
         return RetrievalResult(
             chunks=_merge_ranked_matches(
                 ranked_by_query,
-                max_total_chunks=plan.max_total_chunks,
+                max_total_chunks=max_total_chunks or plan.max_total_chunks,
             ),
             embedding_provider=self._embedding_provider.name,
             embedding_model=self._embedding_provider.model,
@@ -220,6 +240,16 @@ def _validate_embedding_result(
             f"embedding provider declared {expected_dimensions} dimensions but "
             f"returned {len(actual_vectors[0])}"
         )
+
+
+def validate_retrieval_overrides(
+    candidate_k_per_query: int | None,
+    max_total_chunks: int | None,
+) -> None:
+    if candidate_k_per_query is not None and candidate_k_per_query < 1:
+        raise ValueError("candidate_k_per_query must be positive")
+    if max_total_chunks is not None and max_total_chunks < 1:
+        raise ValueError("max_total_chunks must be positive")
 
 
 def _cosine_similarity(left: EmbeddingVector, right: EmbeddingVector) -> float:
