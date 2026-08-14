@@ -124,7 +124,7 @@ class DashScopePhotographyProvider:
         )
         return (
             f"{SYSTEM_PROMPT}\n"
-            "Return only one valid JSON object matching this JSON Schema. "
-            "Do not wrap it in Markdown code fences.\n"
+            "只返回一个符合以下 JSON Schema 的有效 JSON 对象。"
+            "不要使用 Markdown 代码块包裹。\n"
             f"{report_schema}"
         )

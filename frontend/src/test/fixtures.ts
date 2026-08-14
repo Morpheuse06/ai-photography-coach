@@ -50,7 +50,7 @@ export const analysisFixture: AnalysisResponse = {
       knowledge_source_id: 'ai-photography-coach-handbook',
       knowledge_source_version: '1.0',
       planner_model: 'mock-photography-retrieval-v1',
-      planner_prompt_version: 'photography-retrieval-v1.3',
+      planner_prompt_version: 'photography-retrieval-v1.4',
       planner_attempts: 1,
       embedding_model: 'deterministic-char-bigram-v1',
       reranker_model: 'deterministic-character-bigram-rerank-v1',

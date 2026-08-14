@@ -121,7 +121,7 @@ class RagAnalysisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(result.prepared_knowledge.retrieval.chunks), 0)
         self.assertEqual(
             result.response.metadata.prompt_version,
-            "photography-coach-rag-v1.1",
+            "photography-coach-rag-v1.2",
         )
         retrieval = result.response.metadata.retrieval
         self.assertIsNotNone(retrieval)
@@ -133,7 +133,7 @@ class RagAnalysisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(retrieval.knowledge_source_version, "1.0")
         self.assertEqual(
             retrieval.planner_prompt_version,
-            "photography-retrieval-v1.3",
+            "photography-retrieval-v1.4",
         )
         self.assertEqual(
             retrieval.reranker_model,

@@ -63,7 +63,7 @@ class RagContextServiceTests(unittest.IsolatedAsyncioTestCase):
             },
         )
         self.assertEqual(prepared.planner_provider, "mock")
-        self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.3")
+        self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.4")
         self.assertEqual(prepared.planner_attempts, 1)
         self.assertEqual(
             prepared.retrieval.embedding_model,

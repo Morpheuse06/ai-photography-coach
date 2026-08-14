@@ -165,3 +165,14 @@ def require_full_report_dimension_coverage(plan: RetrievalPlan) -> RetrievalPlan
             f"dimension ({'; '.join(details)})"
         )
     return plan
+
+
+class FullReportRetrievalPlan(RetrievalPlan):
+    """Model-facing plan contract for the fixed five-dimension report."""
+
+    queries: list[RetrievalQuery] = Field(min_length=5, max_length=5)
+
+    @model_validator(mode="after")
+    def queries_must_cover_every_report_dimension(self) -> "FullReportRetrievalPlan":
+        require_full_report_dimension_coverage(self)
+        return self

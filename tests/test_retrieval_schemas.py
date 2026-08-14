@@ -5,6 +5,7 @@ import unittest
 from pydantic import ValidationError
 
 from photography_coach.knowledge.retrieval import (
+    FullReportRetrievalPlan,
     PhotoObservation,
     RetrievalPlan,
     RetrievalQuery,
@@ -108,6 +109,16 @@ class RetrievalPlanTests(unittest.TestCase):
     def test_report_coverage_rejects_a_focused_partial_plan(self) -> None:
         with self.assertRaisesRegex(ValueError, "missing: composition"):
             require_full_report_dimension_coverage(_plan())
+
+    def test_model_facing_plan_requires_exactly_five_queries(self) -> None:
+        with self.assertRaises(ValidationError):
+            FullReportRetrievalPlan.model_validate(_plan().model_dump())
+
+        query_schema = FullReportRetrievalPlan.model_json_schema()["properties"][
+            "queries"
+        ]
+        self.assertEqual(query_schema["minItems"], 5)
+        self.assertEqual(query_schema["maxItems"], 5)
 
     def test_rejects_query_that_references_missing_evidence(self) -> None:
         query = _query(evidence_ids=["missing-evidence"])

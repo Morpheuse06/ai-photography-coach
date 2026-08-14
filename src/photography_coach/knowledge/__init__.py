@@ -8,6 +8,7 @@ from photography_coach.knowledge.embeddings import (
 )
 from photography_coach.knowledge.chroma_store import ChromaKnowledgeIndex
 from photography_coach.knowledge.retrieval import (
+    FullReportRetrievalPlan,
     PhotoObservation,
     RetrievalPlan,
     RetrievalQuery,
@@ -41,6 +42,7 @@ __all__ = [
     "KnowledgeIndex",
     "KnowledgeSource",
     "InMemoryKnowledgeIndex",
+    "FullReportRetrievalPlan",
     "PhotoObservation",
     "RetrievalPlan",
     "RetrievalQuery",

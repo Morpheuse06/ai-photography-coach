@@ -22,8 +22,8 @@ from photography_coach.errors import (
     ModelUnavailableError,
 )
 from photography_coach.knowledge.retrieval import (
+    FullReportRetrievalPlan,
     RetrievalPlan,
-    require_full_report_dimension_coverage,
 )
 from photography_coach.providers.dashscope import DEFAULT_DASHSCOPE_BASE_URL
 from photography_coach.providers.planner import PlannerResult
@@ -169,26 +169,26 @@ class DashScopeRetrievalPlanner:
         content = completion.choices[0].message.content
         if not isinstance(content, str):
             raise ValueError("retrieval plan content must be text")
-        model_plan = RetrievalPlan.model_validate_json(content)
+        model_plan = FullReportRetrievalPlan.model_validate_json(content)
         normalized_intent = shooting_intent.strip() if shooting_intent else None
-        plan = RetrievalPlan.model_validate(
+        plan = FullReportRetrievalPlan.model_validate(
             {
                 **model_plan.model_dump(),
                 "user_intent": normalized_intent,
             }
         )
-        return require_full_report_dimension_coverage(plan)
+        return plan
 
     @staticmethod
     def _build_system_prompt() -> str:
         plan_schema = json.dumps(
-            RetrievalPlan.model_json_schema(),
+            FullReportRetrievalPlan.model_json_schema(),
             ensure_ascii=False,
         )
         return (
             f"{RETRIEVAL_SYSTEM_PROMPT}\n"
-            "Return only one valid JSON object matching this JSON Schema. "
-            "Do not wrap it in Markdown code fences.\n"
+            "只返回一个符合以下 JSON Schema 的有效 JSON 对象。"
+            "不要使用 Markdown 代码块包裹。\n"
             f"{plan_schema}"
         )
 
