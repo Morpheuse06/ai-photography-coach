@@ -128,7 +128,7 @@ function App() {
       )}
 
       <footer>
-        <p>AI Photography Coach · V1</p>
+        <p>AI Photography Coach · V2</p>
         <p>建议仅基于画面可见信息，不推测 EXIF、器材或现场条件。</p>
       </footer>
     </main>

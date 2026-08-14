@@ -15,7 +15,7 @@ describe('analyzePhoto', () => {
     await analyzePhoto(photo, '  表现雨天的安静  ')
 
     const request = fetchMock.mock.calls[0]
-    expect(request[0]).toBe('/api/v1/analyze')
+    expect(request[0]).toBe('/api/v2/analyze')
     expect(request[1]?.method).toBe('POST')
     const body = request[1]?.body as FormData
     expect(body.get('photo')).toBe(photo)

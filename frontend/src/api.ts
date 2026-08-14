@@ -39,7 +39,7 @@ export async function analyzePhoto(
 
   let response: Response
   try {
-    response = await fetch('/api/v1/analyze', {
+    response = await fetch('/api/v2/analyze', {
       method: 'POST',
       body: formData,
     })

@@ -153,7 +153,7 @@ export function PhotoForm({
       </button>
       {isLoading && (
         <p className="loading-note" role="status">
-          正在观察构图、光影和叙事，请保持页面打开。模型分析可能需要一分钟。
+          正在观察照片、检索摄影知识并生成报告，请保持页面打开。完整分析可能需要两分钟。
         </p>
       )}
     </form>

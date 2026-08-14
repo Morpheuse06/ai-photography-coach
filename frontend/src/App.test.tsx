@@ -10,6 +10,7 @@ describe('App', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: '拍好下一张' })).toBeInTheDocument()
     expect(screen.queryByText('拍好下一张。')).not.toBeInTheDocument()
+    expect(screen.getByText('AI Photography Coach · V2')).toBeInTheDocument()
     const submit = screen.getByRole('button', { name: '开始分析' })
     expect(submit).toBeDisabled()
 
