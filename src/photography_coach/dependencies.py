@@ -6,6 +6,10 @@ from photography_coach.config import Settings, get_settings
 from photography_coach.errors import ModelUnavailableError
 from photography_coach.knowledge.chroma_store import ChromaKnowledgeIndex
 from photography_coach.knowledge.embeddings import DeterministicEmbeddingProvider
+from photography_coach.knowledge.reranking import (
+    DeterministicRerankingProvider,
+    RerankingProvider,
+)
 from photography_coach.knowledge.schemas import KnowledgeCorpus
 from photography_coach.providers.base import PhotographyProvider
 from photography_coach.providers.dashscope import (
@@ -15,6 +19,9 @@ from photography_coach.providers.dashscope import (
 from photography_coach.providers.mock import MockPhotographyProvider
 from photography_coach.providers.dashscope_embedding import DashScopeEmbeddingProvider
 from photography_coach.providers.dashscope_planner import DashScopeRetrievalPlanner
+from photography_coach.providers.dashscope_reranker import (
+    DashScopeRerankingProvider,
+)
 from photography_coach.providers.mock_planner import MockRetrievalPlanner
 from photography_coach.providers.planner import RetrievalPlanner
 from photography_coach.providers.responses_compatible import (
@@ -23,6 +30,9 @@ from photography_coach.providers.responses_compatible import (
 from photography_coach.services.analysis import AnalysisService
 from photography_coach.services.rag_analysis import RagAnalysisService
 from photography_coach.services.rag_context import RagContextService
+from photography_coach.services.retrieval_reranking import (
+    RetrievalRerankingService,
+)
 
 
 @lru_cache
@@ -59,9 +69,14 @@ async def build_rag_analysis_service(settings: Settings) -> RagAnalysisService:
         embedding_provider = DeterministicEmbeddingProvider(
             dimensions=settings.embedding_dimensions
         )
+        reranking_provider: RerankingProvider = DeterministicRerankingProvider()
     elif settings.model_provider == "dashscope":
         api_key = _require_api_key(settings)
         base_url = settings.model_base_url or DEFAULT_DASHSCOPE_BASE_URL
+        if settings.rerank_base_url is None:
+            raise ModelUnavailableError(
+                "RERANK_BASE_URL is required for DashScope RAG."
+            )
         planner = DashScopeRetrievalPlanner(
             api_key=api_key,
             model=settings.rag_planner_model or settings.model_name,
@@ -75,6 +90,13 @@ async def build_rag_analysis_service(settings: Settings) -> RagAnalysisService:
             dimensions=settings.embedding_dimensions,
             max_batch_size=settings.embedding_max_batch_size,
             base_url=base_url,
+            timeout_seconds=settings.rag_context_timeout_seconds,
+            max_retries=settings.model_max_retries,
+        )
+        reranking_provider = DashScopeRerankingProvider(
+            api_key=api_key,
+            base_url=settings.rerank_base_url,
+            model=settings.rerank_model,
             timeout_seconds=settings.rag_context_timeout_seconds,
             max_retries=settings.model_max_retries,
         )
@@ -92,6 +114,11 @@ async def build_rag_analysis_service(settings: Settings) -> RagAnalysisService:
     context_service = RagContextService(
         planner,
         index,
+        reranking_service=RetrievalRerankingService(
+            reranking_provider,
+            final_max_chunks=settings.rerank_final_max_chunks,
+        ),
+        candidate_k_per_query=settings.rerank_candidate_k,
         timeout_seconds=settings.rag_context_timeout_seconds,
     )
     return RagAnalysisService(

@@ -41,6 +41,10 @@ class RerankResult:
     items: tuple[RerankedItem, ...]
     input_tokens: int | None = None
 
+    def __post_init__(self) -> None:
+        if self.input_tokens is not None and self.input_tokens < 0:
+            raise ValueError("input_tokens cannot be negative")
+
 
 class RerankingProvider(Protocol):
     """Interface shared by local and external text reranking providers."""

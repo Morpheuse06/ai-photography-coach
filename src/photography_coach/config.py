@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     embedding_model: str = "qwen3.7-text-embedding"
     embedding_dimensions: int = Field(default=1_024, ge=64, le=2_560)
     embedding_max_batch_size: int = Field(default=20, ge=1, le=100)
+    rerank_model: str = "qwen3-rerank"
+    rerank_base_url: str | None = None
+    rerank_candidate_k: int = Field(default=8, ge=1, le=100)
+    rerank_final_max_chunks: int = Field(default=6, ge=5, le=10)
     chroma_path: Path = Path("data/chroma")
     knowledge_corpus_path: Path = Path(
         "knowledge/chunks/ai-photography-coach-handbook.json"

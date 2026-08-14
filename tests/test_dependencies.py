@@ -14,6 +14,12 @@ from photography_coach.errors import ModelUnavailableError
 from photography_coach.providers.dashscope import DashScopePhotographyProvider
 from photography_coach.providers.dashscope_embedding import DashScopeEmbeddingProvider
 from photography_coach.providers.dashscope_planner import DashScopeRetrievalPlanner
+from photography_coach.providers.dashscope_reranker import (
+    DashScopeRerankingProvider,
+)
+from photography_coach.knowledge.reranking import (
+    DeterministicRerankingProvider,
+)
 from photography_coach.providers.mock import MockPhotographyProvider
 
 
@@ -77,6 +83,10 @@ class RagDependencyFactoryTests(unittest.IsolatedAsyncioTestCase):
                 service._rag_context_service._index._embedding_provider.name,
                 "deterministic",
             )
+            self.assertIsInstance(
+                service._rag_context_service._reranking_service._provider,
+                DeterministicRerankingProvider,
+            )
 
     async def test_refuses_to_build_when_rag_switch_is_off(self) -> None:
         settings = Settings(_env_file=None, rag_enabled=False)
@@ -92,6 +102,7 @@ class RagDependencyFactoryTests(unittest.IsolatedAsyncioTestCase):
             model_api_key="test-key",
             model_name="qwen3-vl-flash",
             model_base_url="https://workspace.example/compatible-mode/v1",
+            rerank_base_url="https://workspace.example/compatible-api/v1",
             rag_enabled=True,
             rag_planner_model="qwen3-vl-flash",
             embedding_model="qwen3.7-text-embedding",
@@ -110,11 +121,30 @@ class RagDependencyFactoryTests(unittest.IsolatedAsyncioTestCase):
 
         embedding_provider = build_index.await_args.args[1]
         planner = service._rag_context_service._planner
+        reranker = service._rag_context_service._reranking_service._provider
         self.assertIsInstance(service._provider, DashScopePhotographyProvider)
         self.assertIsInstance(planner, DashScopeRetrievalPlanner)
         self.assertIsInstance(embedding_provider, DashScopeEmbeddingProvider)
+        self.assertIsInstance(reranker, DashScopeRerankingProvider)
         self.assertEqual(embedding_provider.model, "qwen3.7-text-embedding")
         self.assertEqual(embedding_provider.dimensions, 1_024)
+        self.assertEqual(reranker.model, "qwen3-rerank")
+
+    async def test_dashscope_rag_requires_rerank_base_url(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        settings = Settings(
+            _env_file=None,
+            model_provider="dashscope",
+            model_api_key="test-key",
+            rag_enabled=True,
+            rerank_base_url=None,
+            knowledge_corpus_path=(
+                project_root / "knowledge/chunks/ai-photography-coach-handbook.json"
+            ),
+        )
+
+        with self.assertRaisesRegex(ModelUnavailableError, "RERANK_BASE_URL"):
+            await build_rag_analysis_service(settings)
 
     async def test_dashscope_rag_requires_api_key_before_external_work(self) -> None:
         settings = Settings(

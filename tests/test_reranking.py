@@ -17,6 +17,8 @@ class RerankContractTests(unittest.TestCase):
             RerankDocument(document_id="chunk-1", text="  ")
         with self.assertRaisesRegex(ValueError, "finite"):
             RerankedItem(document_index=0, relevance_score=float("nan"))
+        with self.assertRaisesRegex(ValueError, "input_tokens"):
+            RerankResult(items=(RerankedItem(0, 0.5),), input_tokens=-1)
 
     def test_rejects_duplicate_or_out_of_range_result_indexes(self) -> None:
         cases = [
