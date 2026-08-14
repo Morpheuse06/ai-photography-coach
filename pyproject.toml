@@ -5,6 +5,7 @@ description = "An AI photography coach that gives structured, actionable feedbac
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "chromadb>=1.0,<2.0",
     "fastapi>=0.115,<1.0",
     "openai>=2.0,<3.0",
     "pillow>=11.0,<13.0",

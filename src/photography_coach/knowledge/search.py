@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from math import isfinite, sqrt
+from typing import Protocol
 
 from photography_coach.knowledge.embeddings import (
     EmbeddingProvider,
@@ -38,6 +39,14 @@ class RetrievalResult:
     embedding_provider: str
     embedding_model: str
     embedding_dimensions: int
+
+
+class KnowledgeIndex(Protocol):
+    """Interface shared by in-memory and persistent vector indexes."""
+
+    async def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
+        """Return bounded, deduplicated knowledge for one plan."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,36 +121,11 @@ class InMemoryKnowledgeIndex:
             )
             ranked_by_query.append((query, matches))
 
-        selected: dict[str, RetrievedChunk] = {}
-        max_rank = max((len(matches) for _, matches in ranked_by_query), default=0)
-        for rank in range(max_rank):
-            for query, matches in ranked_by_query:
-                if rank >= len(matches):
-                    continue
-                chunk, score = matches[rank]
-                existing = selected.get(chunk.chunk_id)
-                if existing is not None:
-                    selected[chunk.chunk_id] = RetrievedChunk(
-                        chunk=existing.chunk,
-                        score=max(existing.score, score),
-                        matched_query_ids=(
-                            existing.matched_query_ids
-                            if query.query_id in existing.matched_query_ids
-                            else existing.matched_query_ids + (query.query_id,)
-                        ),
-                    )
-                    continue
-
-                if len(selected) >= plan.max_total_chunks:
-                    continue
-                selected[chunk.chunk_id] = RetrievedChunk(
-                    chunk=chunk,
-                    score=score,
-                    matched_query_ids=(query.query_id,),
-                )
-
         return RetrievalResult(
-            chunks=tuple(selected.values()),
+            chunks=_merge_ranked_matches(
+                ranked_by_query,
+                max_total_chunks=plan.max_total_chunks,
+            ),
             embedding_provider=self._embedding_provider.name,
             embedding_model=self._embedding_provider.model,
             embedding_dimensions=self._embedding_provider.dimensions,
@@ -179,6 +163,45 @@ def build_chunk_embedding_text(chunk: KnowledgeChunk) -> str:
             f"标签：{', '.join(chunk.tags)}",
         ]
     )
+
+
+def _merge_ranked_matches(
+    ranked_by_query: list[
+        tuple[RetrievalQuery, list[tuple[KnowledgeChunk, float]]]
+    ],
+    *,
+    max_total_chunks: int,
+) -> tuple[RetrievedChunk, ...]:
+    """Select results round-robin so every planned query gets a fair chance."""
+
+    selected: dict[str, RetrievedChunk] = {}
+    max_rank = max((len(matches) for _, matches in ranked_by_query), default=0)
+    for rank in range(max_rank):
+        for query, matches in ranked_by_query:
+            if rank >= len(matches):
+                continue
+            chunk, score = matches[rank]
+            existing = selected.get(chunk.chunk_id)
+            if existing is not None:
+                selected[chunk.chunk_id] = RetrievedChunk(
+                    chunk=existing.chunk,
+                    score=max(existing.score, score),
+                    matched_query_ids=(
+                        existing.matched_query_ids
+                        if query.query_id in existing.matched_query_ids
+                        else existing.matched_query_ids + (query.query_id,)
+                    ),
+                )
+                continue
+
+            if len(selected) >= max_total_chunks:
+                continue
+            selected[chunk.chunk_id] = RetrievedChunk(
+                chunk=chunk,
+                score=score,
+                matched_query_ids=(query.query_id,),
+            )
+    return tuple(selected.values())
 
 
 def _validate_embedding_result(

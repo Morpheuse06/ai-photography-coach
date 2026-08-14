@@ -8,7 +8,7 @@ from time import perf_counter
 from photography_coach.errors import ModelTimeoutError
 from photography_coach.knowledge.retrieval import RetrievalPlan
 from photography_coach.knowledge.search import (
-    InMemoryKnowledgeIndex,
+    KnowledgeIndex,
     RetrievalResult,
 )
 from photography_coach.providers.planner import PlannerResult, RetrievalPlanner
@@ -37,7 +37,7 @@ class RagContextService:
     def __init__(
         self,
         planner: RetrievalPlanner,
-        index: InMemoryKnowledgeIndex,
+        index: KnowledgeIndex,
         *,
         timeout_seconds: float,
     ) -> None:

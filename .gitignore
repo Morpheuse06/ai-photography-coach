@@ -12,6 +12,9 @@ Photos/
 # Model reports may describe private photos and can be regenerated locally
 evals/results/
 
+# Rebuildable local vector database
+data/chroma/
+
 # Python-generated files
 __pycache__/
 *.py[cod]

@@ -6,6 +6,7 @@ from photography_coach.knowledge.embeddings import (
     EmbeddingResult,
     EmbeddingVector,
 )
+from photography_coach.knowledge.chroma_store import ChromaKnowledgeIndex
 from photography_coach.knowledge.retrieval import (
     PhotoObservation,
     RetrievalPlan,
@@ -14,6 +15,7 @@ from photography_coach.knowledge.retrieval import (
 )
 from photography_coach.knowledge.search import (
     InMemoryKnowledgeIndex,
+    KnowledgeIndex,
     RetrievalResult,
     RetrievedChunk,
     build_chunk_embedding_text,
@@ -29,12 +31,14 @@ from photography_coach.knowledge.schemas import (
 
 __all__ = [
     "DeterministicEmbeddingProvider",
+    "ChromaKnowledgeIndex",
     "EmbeddingProvider",
     "EmbeddingResult",
     "EmbeddingVector",
     "KnowledgeChunk",
     "KnowledgeCorpus",
     "KnowledgeDimension",
+    "KnowledgeIndex",
     "KnowledgeSource",
     "InMemoryKnowledgeIndex",
     "PhotoObservation",
