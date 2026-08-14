@@ -4,7 +4,11 @@ import unittest
 
 from pydantic import ValidationError
 
-from photography_coach.knowledge.schemas import KnowledgeChunk, KnowledgeSource
+from photography_coach.knowledge.schemas import (
+    KnowledgeChunk,
+    KnowledgeCorpus,
+    KnowledgeSource,
+)
 
 
 def _source(**overrides) -> KnowledgeSource:
@@ -93,6 +97,27 @@ class KnowledgeChunkTests(unittest.TestCase):
     def test_rejects_invalid_version_format(self) -> None:
         with self.assertRaises(ValidationError):
             _chunk(source_version="latest")
+
+
+class KnowledgeCorpusTests(unittest.TestCase):
+    def test_accepts_ordered_chunks_from_the_same_source(self) -> None:
+        corpus = KnowledgeCorpus(
+            source=_source(),
+            chunks=[_chunk(chunk_index=0)],
+        )
+
+        self.assertEqual(corpus.chunks[0].source_version, corpus.source.version)
+
+    def test_rejects_chunk_from_another_source(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "source_id"):
+            KnowledgeCorpus(
+                source=_source(),
+                chunks=[_chunk(source_id="another-source", chunk_index=0)],
+            )
+
+    def test_rejects_non_continuous_chunk_indexes(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "continuous"):
+            KnowledgeCorpus(source=_source(), chunks=[_chunk(chunk_index=2)])
 
 
 if __name__ == "__main__":

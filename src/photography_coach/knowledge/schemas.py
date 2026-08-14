@@ -96,3 +96,30 @@ class KnowledgeChunk(BaseModel):
             if len(values) != len(set(values)):
                 raise ValueError(f"{field_name} values must be unique")
         return self
+
+
+class KnowledgeCorpus(BaseModel):
+    """One source together with all chunks deterministically derived from it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: KnowledgeSource
+    chunks: list[KnowledgeChunk] = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def chunks_must_belong_to_the_source(self) -> "KnowledgeCorpus":
+        chunk_ids = [chunk.chunk_id for chunk in self.chunks]
+        if len(chunk_ids) != len(set(chunk_ids)):
+            raise ValueError("chunk_id values must be unique")
+
+        expected_indexes = list(range(len(self.chunks)))
+        actual_indexes = [chunk.chunk_index for chunk in self.chunks]
+        if actual_indexes != expected_indexes:
+            raise ValueError("chunk_index values must be continuous and ordered from zero")
+
+        for chunk in self.chunks:
+            if chunk.source_id != self.source.source_id:
+                raise ValueError("every chunk must reference the corpus source_id")
+            if chunk.source_version != self.source.version:
+                raise ValueError("every chunk must reference the corpus source version")
+        return self

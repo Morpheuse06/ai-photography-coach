@@ -2,6 +2,7 @@
 
 from photography_coach.knowledge.schemas import (
     KnowledgeChunk,
+    KnowledgeCorpus,
     KnowledgeDimension,
     KnowledgeSource,
     SourceKind,
@@ -10,6 +11,7 @@ from photography_coach.knowledge.schemas import (
 
 __all__ = [
     "KnowledgeChunk",
+    "KnowledgeCorpus",
     "KnowledgeDimension",
     "KnowledgeSource",
     "SourceKind",
