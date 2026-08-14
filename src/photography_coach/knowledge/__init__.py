@@ -12,6 +12,12 @@ from photography_coach.knowledge.retrieval import (
     RetrievalQuery,
     VisibleEvidence,
 )
+from photography_coach.knowledge.search import (
+    InMemoryKnowledgeIndex,
+    RetrievalResult,
+    RetrievedChunk,
+    build_chunk_embedding_text,
+)
 from photography_coach.knowledge.schemas import (
     KnowledgeChunk,
     KnowledgeCorpus,
@@ -30,10 +36,14 @@ __all__ = [
     "KnowledgeCorpus",
     "KnowledgeDimension",
     "KnowledgeSource",
+    "InMemoryKnowledgeIndex",
     "PhotoObservation",
     "RetrievalPlan",
     "RetrievalQuery",
+    "RetrievalResult",
+    "RetrievedChunk",
     "SourceKind",
     "UsageRights",
     "VisibleEvidence",
+    "build_chunk_embedding_text",
 ]
