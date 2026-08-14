@@ -149,6 +149,15 @@ class RetrievalPlanTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             _plan(queries=queries)
 
+    def test_accepts_intent_up_to_the_upload_contract_limit(self) -> None:
+        plan = _plan(user_intent="意" * 1_000)
+
+        self.assertEqual(len(plan.user_intent or ""), 1_000)
+
+    def test_rejects_intent_over_the_upload_contract_limit(self) -> None:
+        with self.assertRaises(ValidationError):
+            _plan(user_intent="意" * 1_001)
+
 
 if __name__ == "__main__":
     unittest.main()

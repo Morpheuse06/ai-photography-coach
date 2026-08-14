@@ -15,6 +15,10 @@ RetrievalText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=20, max_length=500),
 ]
+UserIntentText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=1_000),
+]
 PhotoDimension = Literal[
     "composition",
     "lighting",
@@ -82,7 +86,7 @@ class RetrievalPlan(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    user_intent: ShortText | None = None
+    user_intent: UserIntentText | None = None
     observation: PhotoObservation
     queries: list[RetrievalQuery] = Field(min_length=1, max_length=5)
     max_total_chunks: int = Field(default=6, ge=1, le=10)
