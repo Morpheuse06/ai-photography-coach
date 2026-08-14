@@ -111,6 +111,7 @@ class RagAnalysisService:
                     "planner_provider": prepared.planner_provider,
                     "planner_model": prepared.planner_model,
                     "planner_prompt_version": prepared.planner_prompt_version,
+                    "planner_attempts": prepared.planner_attempts,
                     "embedding_provider": prepared.retrieval.embedding_provider,
                     "embedding_model": prepared.retrieval.embedding_model,
                     "retrieved_chunk_ids": [

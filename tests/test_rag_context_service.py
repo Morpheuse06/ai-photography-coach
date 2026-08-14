@@ -49,7 +49,8 @@ class RagContextServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertLessEqual(len(prepared.retrieval.chunks), 5)
         self.assertEqual(prepared.planner_provider, "mock")
-        self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.1")
+        self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.2")
+        self.assertEqual(prepared.planner_attempts, 1)
         self.assertEqual(
             prepared.retrieval.embedding_model,
             "deterministic-char-bigram-v1",

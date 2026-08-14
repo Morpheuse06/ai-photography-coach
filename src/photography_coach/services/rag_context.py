@@ -25,6 +25,7 @@ class PreparedKnowledge:
     planner_provider: str
     planner_model: str
     planner_prompt_version: str
+    planner_attempts: int
     latency_ms: int
     input_tokens: int | None = None
     output_tokens: int | None = None
@@ -71,6 +72,7 @@ class RagContextService:
             planner_provider=self._planner.name,
             planner_model=self._planner.model,
             planner_prompt_version=RETRIEVAL_PROMPT_VERSION,
+            planner_attempts=planner_result.attempts,
             latency_ms=round((perf_counter() - started_at) * 1_000),
             input_tokens=planner_result.input_tokens,
             output_tokens=planner_result.output_tokens,

@@ -25,9 +25,13 @@ from photography_coach.knowledge.retrieval import RetrievalPlan
 from photography_coach.providers.dashscope import DEFAULT_DASHSCOPE_BASE_URL
 from photography_coach.providers.planner import PlannerResult
 from photography_coach.retrieval_prompts import (
+    RETRIEVAL_OUTPUT_RETRY_INSTRUCTION,
     RETRIEVAL_SYSTEM_PROMPT,
     build_retrieval_user_prompt,
 )
+
+
+MAX_PLAN_ATTEMPTS = 2
 
 
 class DashScopeRetrievalPlanner:
@@ -62,8 +66,68 @@ class DashScopeRetrievalPlanner:
         image_base64 = base64.b64encode(image_bytes).decode("ascii")
         image_url = f"data:{media_type};base64,{image_base64}"
 
+        input_tokens: int | None = None
+        output_tokens: int | None = None
+        total_tokens: int | None = None
+        last_output_error: Exception | None = None
+
+        for attempt in range(1, MAX_PLAN_ATTEMPTS + 1):
+            completion = await self._request_completion(
+                image_url,
+                shooting_intent,
+                is_output_retry=attempt > 1,
+            )
+            usage = getattr(completion, "usage", None)
+            input_tokens = _sum_optional(
+                input_tokens,
+                getattr(usage, "prompt_tokens", None),
+            )
+            output_tokens = _sum_optional(
+                output_tokens,
+                getattr(usage, "completion_tokens", None),
+            )
+            total_tokens = _sum_optional(
+                total_tokens,
+                getattr(usage, "total_tokens", None),
+            )
+
+            try:
+                plan = self._parse_plan(completion, shooting_intent)
+            except (
+                AttributeError,
+                IndexError,
+                TypeError,
+                ValidationError,
+                ValueError,
+            ) as exc:
+                last_output_error = exc
+                continue
+
+            return PlannerResult(
+                plan=plan,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                attempts=attempt,
+            )
+
+        raise ModelOutputError(
+            "The model returned an invalid retrieval plan after one retry."
+        ) from last_output_error
+
+    async def _request_completion(
+        self,
+        image_url: str,
+        shooting_intent: str | None,
+        *,
+        is_output_retry: bool,
+    ) -> Any:
+        user_text = build_retrieval_user_prompt(shooting_intent)
+        if is_output_retry:
+            user_text = f"{user_text}\n\n{RETRIEVAL_OUTPUT_RETRY_INSTRUCTION}"
+
         try:
-            completion = await self._client.chat.completions.create(
+            return await self._client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
@@ -73,10 +137,7 @@ class DashScopeRetrievalPlanner:
                     {
                         "role": "user",
                         "content": [
-                            {
-                                "type": "text",
-                                "text": build_retrieval_user_prompt(shooting_intent),
-                            },
+                            {"type": "text", "text": user_text},
                             {
                                 "type": "image_url",
                                 "image_url": {"url": image_url},
@@ -100,33 +161,18 @@ class DashScopeRetrievalPlanner:
         except OpenAIError as exc:
             raise ModelUnavailableError("Retrieval planning is unavailable.") from exc
 
-        try:
-            content = completion.choices[0].message.content
-            if not isinstance(content, str):
-                raise ValueError("retrieval plan content must be text")
-            model_plan = RetrievalPlan.model_validate_json(content)
-            normalized_intent = shooting_intent.strip() if shooting_intent else None
-            plan = RetrievalPlan.model_validate(
-                {
-                    **model_plan.model_dump(),
-                    "user_intent": normalized_intent,
-                }
-            )
-        except (
-            AttributeError,
-            IndexError,
-            TypeError,
-            ValidationError,
-            ValueError,
-        ) as exc:
-            raise ModelOutputError("The model returned an invalid retrieval plan.") from exc
-
-        usage = getattr(completion, "usage", None)
-        return PlannerResult(
-            plan=plan,
-            input_tokens=getattr(usage, "prompt_tokens", None),
-            output_tokens=getattr(usage, "completion_tokens", None),
-            total_tokens=getattr(usage, "total_tokens", None),
+    @staticmethod
+    def _parse_plan(completion: Any, shooting_intent: str | None) -> RetrievalPlan:
+        content = completion.choices[0].message.content
+        if not isinstance(content, str):
+            raise ValueError("retrieval plan content must be text")
+        model_plan = RetrievalPlan.model_validate_json(content)
+        normalized_intent = shooting_intent.strip() if shooting_intent else None
+        return RetrievalPlan.model_validate(
+            {
+                **model_plan.model_dump(),
+                "user_intent": normalized_intent,
+            }
         )
 
     @staticmethod
@@ -141,3 +187,8 @@ class DashScopeRetrievalPlanner:
             "Do not wrap it in Markdown code fences.\n"
             f"{plan_schema}"
         )
+
+
+def _sum_optional(left: int | None, right: int | None) -> int | None:
+    values = [value for value in (left, right) if value is not None]
+    return sum(values) if values else None

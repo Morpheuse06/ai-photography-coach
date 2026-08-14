@@ -20,12 +20,25 @@ class _FakeCompletions:
         self.response = response
         self.error = error
         self.arguments = None
+        self.arguments_history = []
 
     async def create(self, **kwargs):
         self.arguments = kwargs
+        self.arguments_history.append(kwargs)
         if self.error:
             raise self.error
         return self.response
+
+
+class _FakeSequenceCompletions(_FakeCompletions):
+    def __init__(self, responses) -> None:
+        super().__init__()
+        self.responses = responses
+
+    async def create(self, **kwargs):
+        self.arguments = kwargs
+        self.arguments_history.append(kwargs)
+        return self.responses[len(self.arguments_history) - 1]
 
 
 class _FakeClient:
@@ -78,23 +91,73 @@ class DashScopeRetrievalPlannerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result.plan.user_intent, "用户真实拍摄意图")
         self.assertEqual(result.total_tokens, 210)
+        self.assertEqual(result.attempts, 1)
+
+    async def test_retries_invalid_output_once_and_accumulates_usage(self) -> None:
+        mock_result = await MockRetrievalPlanner().create_plan(
+            b"",
+            "image/png",
+            None,
+        )
+        invalid_response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content='{"properties": {}}')
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=100,
+                completion_tokens=10,
+                total_tokens=110,
+            ),
+        )
+        valid_response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=mock_result.plan.model_dump_json()
+                    )
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=150,
+                completion_tokens=60,
+                total_tokens=210,
+            ),
+        )
+        fake_completions = _FakeSequenceCompletions(
+            [invalid_response, valid_response]
+        )
+        planner = self._planner(fake_completions)
+
+        result = await planner.create_plan(b"image", "image/jpeg", None)
+
+        self.assertEqual(len(fake_completions.arguments_history), 2)
+        retry_text = fake_completions.arguments_history[1]["messages"][1][
+            "content"
+        ][0]["text"]
+        self.assertIn("不要返回 JSON Schema", retry_text)
+        self.assertEqual(result.attempts, 2)
+        self.assertEqual(result.input_tokens, 250)
+        self.assertEqual(result.output_tokens, 70)
+        self.assertEqual(result.total_tokens, 320)
 
     async def test_rejects_json_that_violates_plan_schema(self) -> None:
-        planner = self._planner(
-            _FakeCompletions(
-                SimpleNamespace(
-                    choices=[
-                        SimpleNamespace(
-                            message=SimpleNamespace(content='{"queries": []}')
-                        )
-                    ],
-                    usage=None,
-                )
+        fake_completions = _FakeCompletions(
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content='{"queries": []}')
+                    )
+                ],
+                usage=None,
             )
         )
+        planner = self._planner(fake_completions)
 
         with self.assertRaises(ModelOutputError):
             await planner.create_plan(b"image", "image/jpeg", None)
+        self.assertEqual(len(fake_completions.arguments_history), 2)
 
     async def test_maps_sdk_timeout_and_rate_limit_errors(self) -> None:
         request = httpx.Request("POST", "https://dashscope.example/chat/completions")

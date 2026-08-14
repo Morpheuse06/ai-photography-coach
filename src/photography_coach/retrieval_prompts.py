@@ -3,7 +3,13 @@
 import json
 
 
-RETRIEVAL_PROMPT_VERSION = "photography-retrieval-v1.1"
+RETRIEVAL_PROMPT_VERSION = "photography-retrieval-v1.2"
+
+RETRIEVAL_OUTPUT_RETRY_INSTRUCTION = """上一次输出没有通过数据契约校验。
+请重新观察照片并返回一份检索计划数据实例。顶层只能包含 user_intent、
+observation、queries、max_total_chunks。不要返回 JSON Schema，也不要输出
+$defs、properties、required、title、type、description 或 additionalProperties。
+仍须遵守所有可见证据、未知信息和安全规则。"""
 
 RETRIEVAL_SYSTEM_PROMPT = """You are the observation stage of a photography RAG system.
 Your job is to describe visible evidence and formulate photography knowledge
