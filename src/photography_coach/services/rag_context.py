@@ -5,8 +5,11 @@ from dataclasses import dataclass
 import json
 from time import perf_counter
 
-from photography_coach.errors import ModelTimeoutError
-from photography_coach.knowledge.retrieval import RetrievalPlan
+from photography_coach.errors import ModelOutputError, ModelTimeoutError
+from photography_coach.knowledge.retrieval import (
+    RetrievalPlan,
+    require_full_report_dimension_coverage,
+)
 from photography_coach.knowledge.search import (
     KnowledgeIndex,
     RetrievalResult,
@@ -90,6 +93,12 @@ class RagContextService:
             media_type,
             shooting_intent,
         )
+        try:
+            require_full_report_dimension_coverage(planner_result.plan)
+        except ValueError as exc:
+            raise ModelOutputError(
+                "Retrieval plan does not cover every report dimension."
+            ) from exc
         retrieval = await self._index.retrieve(planner_result.plan)
         return planner_result, retrieval
 

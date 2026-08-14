@@ -3,7 +3,7 @@
 import json
 
 
-RETRIEVAL_PROMPT_VERSION = "photography-retrieval-v1.2"
+RETRIEVAL_PROMPT_VERSION = "photography-retrieval-v1.3"
 
 RETRIEVAL_OUTPUT_RETRY_INSTRUCTION = """上一次输出没有通过数据契约校验。
 请重新观察照片并返回一份检索计划数据实例。顶层只能包含 user_intent、
@@ -30,7 +30,11 @@ Security and truthfulness rules:
 - Explicitly list important facts that the image cannot establish in unknowns.
 
 Retrieval-planning rules:
-- Create between 1 and 5 queries, ordered by teaching value.
+- Create exactly 5 queries: one each for composition, lighting, color,
+  subject_expression, and visual_storytelling. Do not use general.
+- Include at least one visible-evidence item for every required dimension so
+  each query can cite evidence from its own dimension.
+- Order the five queries by teaching value.
 - Each query must be a standalone Simplified Chinese photography question.
 - Each non-general query must reference visible evidence from the same dimension.
 - Use only composition, lighting, color, subject_expression,

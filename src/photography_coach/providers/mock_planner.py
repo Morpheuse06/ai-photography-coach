@@ -39,6 +39,18 @@ class MockRetrievalPlanner:
                     location="主体和画面最明亮区域",
                 ),
                 VisibleEvidence(
+                    evidence_id="color-relationship",
+                    dimension="color",
+                    description="画面中主体颜色与环境颜色形成了可以直接比较的色彩关系。",
+                    location="主体及其周围环境",
+                ),
+                VisibleEvidence(
+                    evidence_id="subject-attention",
+                    dimension="subject_expression",
+                    description="画面存在可以辨认的注意中心，其形状和环境关系参与主体表达。",
+                    location="画面主要注意区域",
+                ),
+                VisibleEvidence(
                     evidence_id="story-environment",
                     dimension="visual_storytelling",
                     description="主体与周围环境元素同时出现，但两者关系需要通过画面线索建立。",
@@ -71,6 +83,22 @@ class MockRetrievalPlanner:
                     top_k=2,
                 ),
                 RetrievalQuery(
+                    query_id="color-relationship-query",
+                    dimension="color",
+                    evidence_ids=["color-relationship"],
+                    query_text="主体与环境颜色同时出现时，怎样建立清楚的主色和强调色关系？",
+                    teaching_goal="用色彩层级支持注意中心",
+                    top_k=1,
+                ),
+                RetrievalQuery(
+                    query_id="subject-attention-query",
+                    dimension="subject_expression",
+                    evidence_ids=["subject-attention"],
+                    query_text="主体不是人物时，怎样用形状、纹理和环境关系建立清楚的表达？",
+                    teaching_goal="不依赖人物也能明确主体表达",
+                    top_k=1,
+                ),
+                RetrievalQuery(
                     query_id="story-environment-query",
                     dimension="visual_storytelling",
                     evidence_ids=["story-environment"],
@@ -79,6 +107,6 @@ class MockRetrievalPlanner:
                     top_k=1,
                 ),
             ],
-            max_total_chunks=5,
+            max_total_chunks=6,
         )
         return PlannerResult(plan=plan)

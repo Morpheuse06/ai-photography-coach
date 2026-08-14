@@ -4,6 +4,7 @@ import unittest
 
 from photography_coach.providers.mock_planner import MockRetrievalPlanner
 from photography_coach.providers.planner import RetrievalPlanner
+from photography_coach.knowledge.retrieval import REPORT_DIMENSIONS
 
 
 class MockRetrievalPlannerTests(unittest.IsolatedAsyncioTestCase):
@@ -17,8 +18,12 @@ class MockRetrievalPlannerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(result.plan.user_intent, "表现安静的环境人像")
-        self.assertEqual(len(result.plan.queries), 3)
-        self.assertEqual(result.plan.max_total_chunks, 5)
+        self.assertEqual(len(result.plan.queries), 5)
+        self.assertEqual(
+            {query.dimension for query in result.plan.queries},
+            set(REPORT_DIMENSIONS),
+        )
+        self.assertEqual(result.plan.max_total_chunks, 6)
         self.assertTrue(
             all(query.evidence_ids for query in result.plan.queries)
         )

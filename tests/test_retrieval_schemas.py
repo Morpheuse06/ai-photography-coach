@@ -9,6 +9,7 @@ from photography_coach.knowledge.retrieval import (
     RetrievalPlan,
     RetrievalQuery,
     VisibleEvidence,
+    require_full_report_dimension_coverage,
 )
 
 
@@ -103,6 +104,10 @@ class RetrievalPlanTests(unittest.TestCase):
 
         self.assertEqual(plan.queries[0].evidence_ids[0], "lighting-window-contrast")
         self.assertEqual(plan.max_total_chunks, 6)
+
+    def test_report_coverage_rejects_a_focused_partial_plan(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing: composition"):
+            require_full_report_dimension_coverage(_plan())
 
     def test_rejects_query_that_references_missing_evidence(self) -> None:
         query = _query(evidence_ids=["missing-evidence"])

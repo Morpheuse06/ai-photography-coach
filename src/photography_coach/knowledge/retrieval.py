@@ -26,6 +26,13 @@ PhotoDimension = Literal[
     "subject_expression",
     "visual_storytelling",
 ]
+REPORT_DIMENSIONS: tuple[PhotoDimension, ...] = (
+    "composition",
+    "lighting",
+    "color",
+    "subject_expression",
+    "visual_storytelling",
+)
 
 
 class VisibleEvidence(BaseModel):
@@ -124,3 +131,37 @@ class RetrievalPlan(BaseModel):
                     f"query '{query.query_id}' must reference evidence from its dimension"
                 )
         return self
+
+
+def require_full_report_dimension_coverage(plan: RetrievalPlan) -> RetrievalPlan:
+    """Require one query for every dimension in the fixed final report."""
+
+    actual_dimensions = [query.dimension for query in plan.queries]
+    missing_dimensions = [
+        dimension
+        for dimension in REPORT_DIMENSIONS
+        if dimension not in actual_dimensions
+    ]
+    repeated_dimensions = [
+        dimension
+        for dimension in REPORT_DIMENSIONS
+        if actual_dimensions.count(dimension) > 1
+    ]
+    unexpected_dimensions = [
+        dimension
+        for dimension in actual_dimensions
+        if dimension not in REPORT_DIMENSIONS
+    ]
+    if missing_dimensions or repeated_dimensions or unexpected_dimensions:
+        details = []
+        if missing_dimensions:
+            details.append(f"missing: {', '.join(missing_dimensions)}")
+        if repeated_dimensions:
+            details.append(f"repeated: {', '.join(repeated_dimensions)}")
+        if unexpected_dimensions:
+            details.append(f"unexpected: {', '.join(unexpected_dimensions)}")
+        raise ValueError(
+            "retrieval plan must contain exactly one query for every report "
+            f"dimension ({'; '.join(details)})"
+        )
+    return plan

@@ -5,12 +5,12 @@ import json
 from pathlib import Path
 import unittest
 
-from photography_coach.errors import ModelTimeoutError
+from photography_coach.errors import ModelOutputError, ModelTimeoutError
 from photography_coach.knowledge.embeddings import DeterministicEmbeddingProvider
 from photography_coach.knowledge.schemas import KnowledgeCorpus
 from photography_coach.knowledge.search import InMemoryKnowledgeIndex
 from photography_coach.providers.mock_planner import MockRetrievalPlanner
-from photography_coach.providers.planner import RetrievalPlanner
+from photography_coach.providers.planner import PlannerResult, RetrievalPlanner
 from photography_coach.services.rag_context import (
     RagContextService,
     format_retrieval_context,
@@ -47,9 +47,9 @@ class RagContextServiceTests(unittest.IsolatedAsyncioTestCase):
             "表现安静的环境人像",
         )
 
-        self.assertLessEqual(len(prepared.retrieval.chunks), 5)
+        self.assertLessEqual(len(prepared.retrieval.chunks), 6)
         self.assertEqual(prepared.planner_provider, "mock")
-        self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.2")
+        self.assertEqual(prepared.planner_prompt_version, "photography-retrieval-v1.3")
         self.assertEqual(prepared.planner_attempts, 1)
         self.assertEqual(
             prepared.retrieval.embedding_model,
@@ -92,6 +92,25 @@ class RagContextServiceTests(unittest.IsolatedAsyncioTestCase):
                 await _index(),
                 timeout_seconds=0,
             )
+
+    async def test_rejects_plan_that_does_not_cover_all_report_dimensions(self) -> None:
+        service = RagContextService(
+            PartialPlanner(),
+            await _index(),
+            timeout_seconds=1,
+        )
+
+        with self.assertRaisesRegex(ModelOutputError, "every report dimension"):
+            await service.prepare(b"image", "image/jpeg", None)
+
+
+class PartialPlanner(MockRetrievalPlanner):
+    async def create_plan(self, image_bytes, media_type, shooting_intent):
+        result = await super().create_plan(image_bytes, media_type, shooting_intent)
+        partial_plan = result.plan.model_copy(
+            update={"queries": result.plan.queries[:3]}
+        )
+        return PlannerResult(plan=partial_plan)
 
 
 class SlowPlanner:

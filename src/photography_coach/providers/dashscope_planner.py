@@ -21,7 +21,10 @@ from photography_coach.errors import (
     ModelTimeoutError,
     ModelUnavailableError,
 )
-from photography_coach.knowledge.retrieval import RetrievalPlan
+from photography_coach.knowledge.retrieval import (
+    RetrievalPlan,
+    require_full_report_dimension_coverage,
+)
 from photography_coach.providers.dashscope import DEFAULT_DASHSCOPE_BASE_URL
 from photography_coach.providers.planner import PlannerResult
 from photography_coach.retrieval_prompts import (
@@ -168,12 +171,13 @@ class DashScopeRetrievalPlanner:
             raise ValueError("retrieval plan content must be text")
         model_plan = RetrievalPlan.model_validate_json(content)
         normalized_intent = shooting_intent.strip() if shooting_intent else None
-        return RetrievalPlan.model_validate(
+        plan = RetrievalPlan.model_validate(
             {
                 **model_plan.model_dump(),
                 "user_intent": normalized_intent,
             }
         )
+        return require_full_report_dimension_coverage(plan)
 
     @staticmethod
     def _build_system_prompt() -> str:
