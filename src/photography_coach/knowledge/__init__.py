@@ -1,5 +1,11 @@
 """Contracts and utilities for the photography knowledge base."""
 
+from photography_coach.knowledge.retrieval import (
+    PhotoObservation,
+    RetrievalPlan,
+    RetrievalQuery,
+    VisibleEvidence,
+)
 from photography_coach.knowledge.schemas import (
     KnowledgeChunk,
     KnowledgeCorpus,
@@ -14,6 +20,10 @@ __all__ = [
     "KnowledgeCorpus",
     "KnowledgeDimension",
     "KnowledgeSource",
+    "PhotoObservation",
+    "RetrievalPlan",
+    "RetrievalQuery",
     "SourceKind",
     "UsageRights",
+    "VisibleEvidence",
 ]
