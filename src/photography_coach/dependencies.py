@@ -2,6 +2,8 @@
 
 from functools import lru_cache
 
+from fastapi import Request
+
 from photography_coach.config import Settings, get_settings
 from photography_coach.errors import ModelUnavailableError
 from photography_coach.knowledge.chroma_store import ChromaKnowledgeIndex
@@ -47,10 +49,13 @@ def get_analysis_service() -> AnalysisService:
     )
 
 
-async def get_rag_analysis_service() -> RagAnalysisService:
-    """Build the configured RAG service when its explicit switch is enabled."""
+async def get_rag_analysis_service(request: Request) -> RagAnalysisService:
+    """Return the RAG service prepared once during application startup."""
 
-    return await build_rag_analysis_service(get_settings())
+    service = getattr(request.app.state, "rag_analysis_service", None)
+    if service is None:
+        raise ModelUnavailableError("RAG analysis is not enabled.")
+    return service
 
 
 async def build_rag_analysis_service(settings: Settings) -> RagAnalysisService:
