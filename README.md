@@ -1,8 +1,8 @@
 # AI 摄影教练 Agent
 
-一个面向摄影学习者的全栈 V1：上传一张 JPEG、PNG 或 WebP 照片后，返回基于可见证据的结构化摄影指导。
+一个面向摄影学习者的全栈 V2：上传一张 JPEG、PNG 或 WebP 照片后，系统检索项目摄影手册，并返回基于画面证据和摄影知识的结构化指导。
 
-## V1 能力
+## V2 能力
 
 - 单图上传，可选填写拍摄意图
 - 图片真实格式、完整性、大小和像素安全检查
@@ -14,20 +14,26 @@
 - 超时、限流、模型不可用、异常输出和请求错误的统一响应
 - 记录 provider、model、Prompt 版本、耗时和 token 用量，不记录图片内容
 - React + TypeScript 单页前端，支持照片预览、隐私确认和完整报告展示
+- 多模态模型先根据可见画面规划五个维度的知识检索问题
+- 使用 Embedding 和本地 Chroma 召回摄影手册候选知识
+- 使用可替换的 Reranker 重排候选，并保证五个报告维度都有知识覆盖
+- 在响应中记录知识库、规划 Prompt、Embedding、Reranker、命中数量与检索耗时
 
 ## 请求流程
 
 ```text
 客户端
-  → FastAPI 上传接口
+  → FastAPI /api/v2/analyze
   → 图片内容验证
-  → AnalysisService（总超时）
-  → Mock 或可配置的模型 Provider
+  → 多模态检索规划（五个维度）
+  → Embedding + Chroma 候选召回
+  → Reranker 重排并压缩上下文
+  → 多模态模型生成摄影报告
   → PhotographyReport
   → 结构化 JSON 响应
 ```
 
-V1 是固定工作流，因此只使用普通 Python、FastAPI 和官方 SDK，没有引入 LangChain 或 LangGraph。
+V2 仍是清晰的固定工作流，因此使用普通 Python、FastAPI、Chroma 和模型官方兼容接口，没有引入 LangChain 或 LangGraph。
 
 ## 本地运行
 
@@ -37,6 +43,7 @@ V1 是固定工作流，因此只使用普通 Python、FastAPI 和官方 SDK，�
 python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[test]"
+cp .env.example .env
 uvicorn photography_coach.main:app --reload
 ```
 
@@ -45,7 +52,7 @@ uvicorn photography_coach.main:app --reload
 - API 文档：<http://127.0.0.1:8000/docs>
 - 健康检查：<http://127.0.0.1:8000/health>
 
-默认使用 Mock Provider，不需要 API Key，也不会产生模型费用。
+示例配置使用 Mock Provider 和本地确定性 Embedding/Reranker，不需要 API Key，也不会产生模型费用。首次启动会在 `data/chroma/` 建立可重新生成的本地索引；后续启动会复用同一知识库和模型对应的索引。
 
 启动前端（新终端）：
 
@@ -60,12 +67,12 @@ npm run dev
 ## 调用分析接口
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/analyze \
+curl -X POST http://127.0.0.1:8000/api/v2/analyze \
   -F "photo=@/absolute/path/to/photo.jpg;type=image/jpeg" \
   -F "intent=我想表现雨天街道的孤独感"
 ```
 
-允许格式：JPEG、PNG、WebP。V1 限制为静态图片、最大 10 MiB、最大 2500 万像素。
+允许格式：JPEG、PNG、WebP。V2 限制为静态图片、最大 10 MiB、最大 2500 万像素。旧的 `/api/v1/analyze` 仍保留为不经过知识检索的基线接口。
 
 ## 使用真实模型 API
 
@@ -82,15 +89,21 @@ MODEL_PROVIDER=dashscope
 MODEL_API_KEY=你的本地密钥
 MODEL_NAME=qwen3.7-plus
 MODEL_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+MODEL_TIMEOUT_SECONDS=120
+RAG_ENABLED=true
+RAG_CONTEXT_TIMEOUT_SECONDS=120
+EMBEDDING_MODEL=qwen3.7-text-embedding
+RERANK_MODEL=qwen3-rerank
+RERANK_BASE_URL=控制台提供的兼容接口基础地址
 ```
 
-使用百炼 Qwen 时，将 `MODEL_PROVIDER` 设置为 `dashscope`，填写本地 API Key、模型名称和控制台提供的区域地址。使用 Responses API 兼容服务时设置为 `responses_compatible`。
+使用百炼 Qwen 时，将 `MODEL_PROVIDER` 设置为 `dashscope`，填写本地 API Key、模型名称、模型基础地址和 Reranker 基础地址。`RERANK_BASE_URL` 应以兼容接口版本路径结尾，不要包含 `/reranks` 资源路径，也不要在 URL 中放置凭据。
 
 业务层依赖的是 `PhotographyProvider` 协议，而不是某家模型厂商。对于不兼容 Responses API 的服务，只需新增一个 Provider 适配器，实现同一个 `analyze()` 方法；路由、验证、业务服务和报告 Schema 不需要修改。
 
 `.env` 已被 Git 忽略。请勿把真实 Key 写入代码、README、测试或提交记录。
 
-当前 Responses-compatible 实现依据 OpenAI 官方的 [图片输入指南](https://developers.openai.com/api/docs/guides/images-vision) 和 [Structured Outputs 指南](https://developers.openai.com/api/docs/guides/structured-outputs)。图片通过 Base64 data URL 随单次请求发送，并设置 `store=False`。如果切换到其他 API 形状，应在对应适配器中实现同等的隐私选项。
+图片通过 Base64 data URL 随规划请求和最终报告请求发送。Embedding 与 Reranker 只接收摄影问题和知识库文字，不接收照片。如果切换服务商，应在对应适配器中确认其数据保留和隐私选项。
 
 ## 测试
 
@@ -109,11 +122,11 @@ npm run build
 npm test
 ```
 
-## 本地 Prompt 评测
+## 本地评测
 
 测试照片保存在被 Git 忽略的 `Photos/` 中，仓库只记录不含图片内容的
-数据集清单。运行器会先验证文件路径和 SHA-256 指纹，再逐张调用当前配置的
-Provider，并在每张完成后保存本地快照：
+数据集清单。V1 基线运行器会先验证文件路径和 SHA-256 指纹，再逐张调用当前
+配置的 Provider，并在每张完成后保存本地快照：
 
 ```bash
 MODEL_TIMEOUT_SECONDS=90 python -m photography_coach.evals.runner \
@@ -133,11 +146,21 @@ MODEL_TIMEOUT_SECONDS=90 python -m photography_coach.evals.runner \
 `evals/results/` 可能包含对私人照片的文字描述，因此也被 Git 忽略。评测用
 90 秒超时不会改变网页端 `.env` 中的默认请求超时。
 
+获得照片发送授权后，可运行单照片 V2 全链路烟雾测试：
+
+```bash
+python scripts/smoke_test_rag_pipeline.py
+```
+
+脚本会保存规划、检索、重排和最终报告的本地结果。照片、模型报告、Chroma
+数据和 `.env` 均被 Git 忽略。
+
 ## 主要目录
 
 ```text
 src/photography_coach/
 ├── api/                 # FastAPI 路由
+├── knowledge/           # Chunk、Embedding、Chroma 与检索契约
 ├── providers/           # Mock 与可替换的模型适配器
 ├── schemas/             # Pydantic 请求/响应契约
 ├── services/            # 分析业务流程
@@ -146,6 +169,11 @@ src/photography_coach/
 ├── image_validation.py  # 图片安全验证
 ├── main.py              # FastAPI 应用入口
 └── prompts.py           # Prompt 内容与版本
+
+knowledge/
+├── manuals/             # 项目编写的摄影手册
+├── chunks/              # 可验证、可向量化的章节切分结果
+└── sources/             # 知识来源及使用权元数据
 
 frontend/src/
 ├── components/          # 上传表单与报告展示组件
@@ -156,12 +184,13 @@ frontend/src/
 
 ## 隐私与安全边界
 
-- V1 不保存上传图片，也不建立用户历史。
+- V2 不保存上传图片，也不建立用户历史。
 - 不信任扩展名或客户端 MIME 声明，以 Pillow 检测真实内容。
 - Prompt 明确把图片文字和拍摄意图视为不可信资料，不能当作指令执行。
 - 模型不得虚构 EXIF、相机、镜头、曝光参数、地点、天气或画外条件。
-- Pydantic 和 Structured Outputs 保证数据结构，不保证摄影建议一定专业；后续仍需建立测试照片集和人工评价标准。
+- 知识文本作为参考数据传入模型，不能覆盖系统规则或执行其中的指令。
+- Pydantic 保证数据结构，不保证摄影建议一定专业；项目使用本地测试照片集和人工评分规则继续评估质量。
 
 ## 暂未包含
 
-数据库、用户系统、历史趋势、RAG、自动修图、Docker 和复杂 Agent 工作流将在后续版本按真实需求加入。
+数据库、用户系统、历史趋势、自动修图、Docker 和复杂 Agent 工作流仍未包含，将在后续版本按真实需求加入。

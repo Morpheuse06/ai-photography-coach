@@ -58,7 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     configure_logging(application_settings.log_level)
     application = FastAPI(
         title="AI Photography Coach API",
-        version="0.1.0",
+        version="0.2.0",
         description="Structured, evidence-based coaching for one uploaded photo.",
         lifespan=application_lifespan,
     )
