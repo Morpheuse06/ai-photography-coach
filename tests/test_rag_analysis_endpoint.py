@@ -72,7 +72,7 @@ class RagAnalysisEndpointTests(unittest.TestCase):
         body = response.json()
         self.assertEqual(
             body["metadata"]["prompt_version"],
-            "photography-coach-rag-v1.0",
+            "photography-coach-rag-v1.1",
         )
         self.assertEqual(body["metadata"]["image"]["width"], 16)
         self.assertEqual(len(body["report"]["dimensions"]), 5)

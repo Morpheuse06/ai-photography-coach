@@ -121,7 +121,7 @@ class RagAnalysisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(result.prepared_knowledge.retrieval.chunks), 0)
         self.assertEqual(
             result.response.metadata.prompt_version,
-            "photography-coach-rag-v1.0",
+            "photography-coach-rag-v1.1",
         )
 
     async def test_sums_planner_and_report_model_usage(self) -> None:
