@@ -35,14 +35,11 @@ class ApplicationLifespanTests(unittest.TestCase):
         shared_service = object()
         build_service = AsyncMock(return_value=shared_service)
 
-        with (
-            patch("photography_coach.main.get_settings", return_value=settings),
-            patch(
-                "photography_coach.main.build_rag_analysis_service",
-                build_service,
-            ),
+        with patch(
+            "photography_coach.main.build_rag_analysis_service",
+            build_service,
         ):
-            application = create_app()
+            application = create_app(settings)
             with TestClient(application):
                 first = asyncio.run(
                     get_rag_analysis_service(_request_for(application))
@@ -61,14 +58,11 @@ class ApplicationLifespanTests(unittest.TestCase):
         settings = Settings(_env_file=None, rag_enabled=False)
         build_service = AsyncMock()
 
-        with (
-            patch("photography_coach.main.get_settings", return_value=settings),
-            patch(
-                "photography_coach.main.build_rag_analysis_service",
-                build_service,
-            ),
+        with patch(
+            "photography_coach.main.build_rag_analysis_service",
+            build_service,
         ):
-            application = create_app()
+            application = create_app(settings)
             with TestClient(application):
                 with self.assertRaisesRegex(
                     ModelUnavailableError,

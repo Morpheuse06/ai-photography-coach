@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from photography_coach.api.routes import rag_router, router
-from photography_coach.config import get_settings
+from photography_coach.config import Settings, get_settings
 from photography_coach.dependencies import build_rag_analysis_service
 from photography_coach.errors import AppError
 from photography_coach.logging_config import configure_logging
@@ -40,7 +40,7 @@ async def application_lifespan(
 ) -> AsyncIterator[None]:
     """Prepare expensive shared services once for this server process."""
 
-    settings = get_settings()
+    settings = application.state.settings
     application.state.rag_analysis_service = None
     if settings.rag_enabled:
         application.state.rag_analysis_service = (
@@ -52,15 +52,17 @@ async def application_lifespan(
         application.state.rag_analysis_service = None
 
 
-def create_app() -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Create and configure the FastAPI application."""
-    configure_logging(get_settings().log_level)
+    application_settings = settings or get_settings()
+    configure_logging(application_settings.log_level)
     application = FastAPI(
         title="AI Photography Coach API",
         version="0.1.0",
         description="Structured, evidence-based coaching for one uploaded photo.",
         lifespan=application_lifespan,
     )
+    application.state.settings = application_settings
     application.include_router(router)
     application.include_router(rag_router)
     application.add_api_route(
