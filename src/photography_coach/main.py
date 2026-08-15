@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -15,7 +16,10 @@ from photography_coach.api.admin_routes import admin_router
 from photography_coach.api.public_routes import feedback_router
 from photography_coach.api.routes import rag_router, router
 from photography_coach.config import Settings, get_settings
-from photography_coach.dependencies import build_rag_analysis_service
+from photography_coach.dependencies import (
+    build_rag_analysis_service,
+    policy_defaults_from_settings,
+)
 from photography_coach.errors import AppError
 from photography_coach.logging_config import configure_logging
 from photography_coach.persistence.engine import (
@@ -23,11 +27,15 @@ from photography_coach.persistence.engine import (
     create_schema,
     session_factory_for,
 )
+from photography_coach.persistence.usage import SqlUsageAuthorizer
 from photography_coach.schemas.analysis import ErrorDetail, ErrorResponse
 from photography_coach.services.rate_limiting import SourceRateLimiter
+from photography_coach.services.retention import RetentionService
 
 
 logger = logging.getLogger(__name__)
+
+RETENTION_FIRST_RUN_DELAY_SECONDS = 60
 
 
 class HealthResponse(BaseModel):
@@ -55,6 +63,7 @@ async def application_lifespan(
     application.state.db_engine = None
     application.state.db_session_factory = None
     application.state.source_rate_limiter = None
+    application.state.retention_task = None
     application.state.started_at = datetime.now(UTC)
     if settings.rag_enabled:
         application.state.rag_analysis_service = (
@@ -66,15 +75,52 @@ async def application_lifespan(
         application.state.db_engine = db_engine
         application.state.db_session_factory = session_factory_for(db_engine)
         application.state.source_rate_limiter = SourceRateLimiter()
+        application.state.retention_task = asyncio.create_task(
+            _retention_loop(application),
+            name="retention-cleanup",
+        )
     try:
         yield
     finally:
+        if application.state.retention_task is not None:
+            application.state.retention_task.cancel()
+            try:
+                await application.state.retention_task
+            except asyncio.CancelledError:
+                pass
+        application.state.retention_task = None
         application.state.rag_analysis_service = None
         if application.state.db_engine is not None:
             await application.state.db_engine.dispose()
         application.state.db_engine = None
         application.state.db_session_factory = None
         application.state.source_rate_limiter = None
+
+
+async def _retention_loop(application: FastAPI) -> None:
+    """Run one retention pass per configured interval in the background."""
+    interval_seconds = (
+        application.state.settings.retention_interval_hours * 3_600
+    )
+    await asyncio.sleep(RETENTION_FIRST_RUN_DELAY_SECONDS)
+    while True:
+        await asyncio.sleep(interval_seconds)
+        await _run_retention_pass(application)
+
+
+async def _run_retention_pass(application: FastAPI) -> None:
+    settings = application.state.settings
+    session_factory = application.state.db_session_factory
+    try:
+        async with session_factory() as session:
+            authorizer = SqlUsageAuthorizer(
+                session,
+                reservation_ttl_minutes=settings.reservation_ttl_minutes,
+                policy_defaults=policy_defaults_from_settings(settings),
+            )
+            await RetentionService(session, authorizer=authorizer).run_cleanup()
+    except Exception:
+        logger.exception("retention_pass_failed")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

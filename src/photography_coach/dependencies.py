@@ -168,6 +168,16 @@ def _require_api_key(settings: Settings) -> str:
     return settings.model_api_key.get_secret_value()
 
 
+def policy_defaults_from_settings(settings: Settings) -> PolicyDefaults:
+    """Build the seed policy used by the quota authorizer."""
+    return PolicyDefaults(
+        mode=AccessMode(settings.default_access_mode),
+        per_source_hour_limit=settings.default_per_source_hour_limit,
+        global_daily_limit=settings.default_global_daily_limit,
+        concurrent_analysis_limit=settings.default_concurrent_analysis_limit,
+    )
+
+
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
     """Yield one request-scoped session for the control-plane database."""
     session_factory = getattr(request.app.state, "db_session_factory", None)
@@ -196,11 +206,6 @@ async def get_control_plane_analysis_service(
             session=session,
             rag_service=rag_service,
             reservation_ttl_minutes=settings.reservation_ttl_minutes,
-            policy_defaults=PolicyDefaults(
-                mode=AccessMode(settings.default_access_mode),
-                per_source_hour_limit=settings.default_per_source_hour_limit,
-                global_daily_limit=settings.default_global_daily_limit,
-                concurrent_analysis_limit=settings.default_concurrent_analysis_limit,
-            ),
+            policy_defaults=policy_defaults_from_settings(settings),
             source_rate_limiter=request.app.state.source_rate_limiter,
         )
