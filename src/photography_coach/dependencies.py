@@ -1,11 +1,13 @@
 """FastAPI dependency factories for configured application services."""
 
+from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from fastapi import Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from photography_coach.config import Settings, get_settings
-from photography_coach.errors import ModelUnavailableError
+from photography_coach.errors import ControlPlaneUnavailableError, ModelUnavailableError
 from photography_coach.knowledge.chroma_store import ChromaKnowledgeIndex
 from photography_coach.knowledge.embeddings import DeterministicEmbeddingProvider
 from photography_coach.knowledge.reranking import (
@@ -13,6 +15,7 @@ from photography_coach.knowledge.reranking import (
     RerankingProvider,
 )
 from photography_coach.knowledge.schemas import KnowledgeCorpus
+from photography_coach.persistence.usage import PolicyDefaults
 from photography_coach.providers.base import PhotographyProvider
 from photography_coach.providers.dashscope import (
     DEFAULT_DASHSCOPE_BASE_URL,
@@ -29,9 +32,12 @@ from photography_coach.providers.planner import RetrievalPlanner
 from photography_coach.providers.responses_compatible import (
     ResponsesCompatiblePhotographyProvider,
 )
+from photography_coach.schemas.interaction import AccessMode
 from photography_coach.services.analysis import AnalysisService
+from photography_coach.services.control_plane import ControlPlaneAnalysisService
 from photography_coach.services.rag_analysis import RagAnalysisService
 from photography_coach.services.rag_context import RagContextService
+from photography_coach.services.rate_limiting import SourceRateLimiter
 from photography_coach.services.retrieval_reranking import (
     RetrievalRerankingService,
 )
@@ -160,3 +166,41 @@ def _require_api_key(settings: Settings) -> str:
             f"MODEL_API_KEY is required when MODEL_PROVIDER={settings.model_provider}."
         )
     return settings.model_api_key.get_secret_value()
+
+
+async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
+    """Yield one request-scoped session for the control-plane database."""
+    session_factory = getattr(request.app.state, "db_session_factory", None)
+    if session_factory is None:
+        raise ControlPlaneUnavailableError("The control plane is not enabled.")
+    async with session_factory() as session:
+        yield session
+
+
+async def get_control_plane_analysis_service(
+    request: Request,
+) -> AsyncIterator[ControlPlaneAnalysisService | None]:
+    """Yield the quota-protected V2 service, or None when disabled."""
+    if not getattr(request.app.state, "control_plane_enabled", False):
+        yield None
+        return
+    session_factory = getattr(request.app.state, "db_session_factory", None)
+    if session_factory is None:
+        raise ControlPlaneUnavailableError("The control plane is not enabled.")
+    settings: Settings = request.app.state.settings
+    rag_service = getattr(request.app.state, "rag_analysis_service", None)
+    if rag_service is None:
+        raise ModelUnavailableError("RAG analysis is not enabled.")
+    async with session_factory() as session:
+        yield ControlPlaneAnalysisService(
+            session=session,
+            rag_service=rag_service,
+            reservation_ttl_minutes=settings.reservation_ttl_minutes,
+            policy_defaults=PolicyDefaults(
+                mode=AccessMode(settings.default_access_mode),
+                per_source_hour_limit=settings.default_per_source_hour_limit,
+                global_daily_limit=settings.default_global_daily_limit,
+                concurrent_analysis_limit=settings.default_concurrent_analysis_limit,
+            ),
+            source_rate_limiter=request.app.state.source_rate_limiter,
+        )

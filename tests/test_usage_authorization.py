@@ -22,7 +22,6 @@ from photography_coach.errors import (
 from photography_coach.persistence.engine import (
     create_db_engine,
     create_schema,
-    drop_schema,
     session_factory_for,
 )
 from photography_coach.persistence.models import (
@@ -158,6 +157,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=uuid4(),
             access_code=None,
             idempotency_key="key-1",
+            request_fingerprint="fp-1",
         )
 
         self.assertEqual(reservation.mode, AccessMode.OPEN)
@@ -175,6 +175,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=None,
                 idempotency_key="key-2",
+                request_fingerprint="fp-2",
             )
 
     async def test_unknown_revoked_and_expired_codes_are_denied(self) -> None:
@@ -187,6 +188,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code="PXC-UNKNOWN-CODE-0000",
                 idempotency_key="key-3",
+                request_fingerprint="fp-3",
             )
 
         revoked_raw = "PXC-RVKD-2222-3333-4444"
@@ -198,6 +200,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=revoked_raw,
                 idempotency_key="key-4",
+                request_fingerprint="fp-4",
             )
 
         expired_raw = "PXC-EXPD-5555-6666-7777"
@@ -211,6 +214,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=expired_raw,
                 idempotency_key="key-5",
+                request_fingerprint="fp-5",
             )
 
     async def test_reserve_then_commit_consumes_exactly_one_use(self) -> None:
@@ -224,6 +228,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=analysis_id,
             access_code=RAW_CODE,
             idempotency_key="key-6",
+            request_fingerprint="fp-6",
         )
         self.assertEqual(reservation.remaining_uses_after_reservation, 1)
 
@@ -251,6 +256,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=analysis_id,
             access_code=RAW_CODE,
             idempotency_key="key-7",
+            request_fingerprint="fp-7",
         )
 
         first = await authorizer.commit(
@@ -277,6 +283,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=analysis_id,
             access_code=RAW_CODE,
             idempotency_key="key-8",
+            request_fingerprint="fp-8",
         )
 
         await authorizer.release(
@@ -306,6 +313,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=analysis_id,
             access_code=RAW_CODE,
             idempotency_key="key-9",
+            request_fingerprint="fp-9",
         )
         await authorizer.commit(reservation.reservation_id, analysis_id=analysis_id)
 
@@ -314,6 +322,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=RAW_CODE,
                 idempotency_key="key-10",
+                request_fingerprint="fp-10",
             )
         code = await session.get(AccessCode, code_id)
         self.assertEqual(code.status, "exhausted")
@@ -339,11 +348,13 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=RAW_CODE,
                 idempotency_key="key-11",
+                request_fingerprint="fp-11",
             ),
             second.reserve(
                 analysis_id=uuid4(),
                 access_code=RAW_CODE,
                 idempotency_key="key-12",
+                request_fingerprint="fp-12",
             ),
             return_exceptions=True,
         )
@@ -368,23 +379,38 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=uuid4(),
             access_code=RAW_CODE,
             idempotency_key="key-13",
+            request_fingerprint="fp-13",
         )
 
+        # A retry of the same request while reserved replays the reservation.
         replay = await authorizer.reserve(
             analysis_id=uuid4(),
             access_code=RAW_CODE,
             idempotency_key="key-13",
+            request_fingerprint="fp-13",
         )
         self.assertEqual(replay.reservation_id, first.reservation_id)
         self.assertEqual(replay.analysis_id, first.analysis_id)
 
-        await authorizer.commit(first.reservation_id, analysis_id=first.analysis_id)
+        # A different request reusing the key is a conflict.
         with self.assertRaises(IdempotencyConflictError):
             await authorizer.reserve(
                 analysis_id=uuid4(),
                 access_code=RAW_CODE,
                 idempotency_key="key-13",
+                request_fingerprint="fp-13-other",
             )
+
+        # The authorizer replays the terminal reservation too; the service
+        # layer decides whether to rebuild a stored response.
+        await authorizer.commit(first.reservation_id, analysis_id=first.analysis_id)
+        terminal_replay = await authorizer.reserve(
+            analysis_id=uuid4(),
+            access_code=RAW_CODE,
+            idempotency_key="key-13",
+            request_fingerprint="fp-13",
+        )
+        self.assertEqual(terminal_replay.reservation_id, first.reservation_id)
 
     async def test_same_key_with_different_code_is_a_conflict(self) -> None:
         session = self.new_session()
@@ -400,12 +426,14 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=uuid4(),
             access_code=RAW_CODE,
             idempotency_key="key-14",
+            request_fingerprint="fp-14-a",
         )
         with self.assertRaises(IdempotencyConflictError):
             await authorizer.reserve(
                 analysis_id=uuid4(),
                 access_code="PXC-EEEE-FFFF-GGGG-HHHH",
                 idempotency_key="key-14",
+                request_fingerprint="fp-14-b",
             )
 
     async def test_closed_mode_rejects_every_analysis(self) -> None:
@@ -417,6 +445,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=None,
                 idempotency_key="key-15",
+                request_fingerprint="fp-15",
             )
 
     async def test_global_daily_and_concurrency_limits_apply_in_open_mode(self) -> None:
@@ -431,6 +460,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             analysis_id=uuid4(),
             access_code=None,
             idempotency_key="key-16",
+            request_fingerprint="fp-16",
         )
 
         with self.assertRaises(ConcurrencyLimitReachedError):
@@ -438,6 +468,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=None,
                 idempotency_key="key-17",
+                request_fingerprint="fp-17",
             )
 
         await authorizer.commit(first.reservation_id, analysis_id=first.analysis_id)
@@ -446,6 +477,7 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 analysis_id=uuid4(),
                 access_code=None,
                 idempotency_key="key-18",
+                request_fingerprint="fp-18",
             )
 
     async def test_ledger_balances_reconstruct_usage(self) -> None:
@@ -454,22 +486,22 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         authorizer = self.authorizer(session, mode=AccessMode.CODE_REQUIRED)
         code_id = await self.create_code(session, uses_total=3)
 
-        consumed = []
         for index in range(2):
             reservation = await authorizer.reserve(
                 analysis_id=uuid4(),
                 access_code=RAW_CODE,
                 idempotency_key=f"key-ledger-{index}",
+                request_fingerprint=f"fp-ledger-{index}",
             )
             await authorizer.commit(
                 reservation.reservation_id, analysis_id=reservation.analysis_id
             )
-            consumed.append(reservation)
 
         released = await authorizer.reserve(
             analysis_id=uuid4(),
             access_code=RAW_CODE,
             idempotency_key="key-ledger-3",
+            request_fingerprint="fp-ledger-3",
         )
         await authorizer.release(
             released.reservation_id,

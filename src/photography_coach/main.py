@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 import logging
 from typing import Literal
 
@@ -15,7 +16,13 @@ from photography_coach.config import Settings, get_settings
 from photography_coach.dependencies import build_rag_analysis_service
 from photography_coach.errors import AppError
 from photography_coach.logging_config import configure_logging
+from photography_coach.persistence.engine import (
+    create_db_engine,
+    create_schema,
+    session_factory_for,
+)
 from photography_coach.schemas.analysis import ErrorDetail, ErrorResponse
+from photography_coach.services.rate_limiting import SourceRateLimiter
 
 
 logger = logging.getLogger(__name__)
@@ -42,14 +49,30 @@ async def application_lifespan(
 
     settings = application.state.settings
     application.state.rag_analysis_service = None
+    application.state.control_plane_enabled = settings.control_plane_enabled
+    application.state.db_engine = None
+    application.state.db_session_factory = None
+    application.state.source_rate_limiter = None
+    application.state.started_at = datetime.now(UTC)
     if settings.rag_enabled:
         application.state.rag_analysis_service = (
             await build_rag_analysis_service(settings)
         )
+    if settings.control_plane_enabled:
+        db_engine = create_db_engine(settings.database_url)
+        await create_schema(db_engine)
+        application.state.db_engine = db_engine
+        application.state.db_session_factory = session_factory_for(db_engine)
+        application.state.source_rate_limiter = SourceRateLimiter()
     try:
         yield
     finally:
         application.state.rag_analysis_service = None
+        if application.state.db_engine is not None:
+            await application.state.db_engine.dispose()
+        application.state.db_engine = None
+        application.state.db_session_factory = None
+        application.state.source_rate_limiter = None
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

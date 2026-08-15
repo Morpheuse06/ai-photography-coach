@@ -32,8 +32,9 @@ class _ControlPlaneAdapter:
         analysis_id: UUID,
         access_code: str | None,
         idempotency_key: str,
+        request_fingerprint: str,
     ) -> UsageReservation:
-        del access_code, idempotency_key
+        del access_code, idempotency_key, request_fingerprint
         return UsageReservation(
             reservation_id=uuid4(),
             analysis_id=analysis_id,
@@ -106,6 +107,14 @@ class _ControlPlaneAdapter:
     ) -> ProblemReportReceipt:
         del report, runtime_metadata
         raise NotImplementedError
+
+    async def register_feedback_token(
+        self,
+        *,
+        analysis_id: UUID,
+        feedback_token: str,
+    ) -> None:
+        del analysis_id, feedback_token
 
 
 class ControlPlanePortTests(unittest.TestCase):

@@ -144,6 +144,7 @@ class UsageReservation(Base):
     idempotency_hash: Mapped[str] = mapped_column(
         String(64), unique=True, nullable=False
     )
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     release_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)

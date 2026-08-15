@@ -45,8 +45,14 @@ class UsageAuthorizer(Protocol):
         analysis_id: UUID,
         access_code: str | None,
         idempotency_key: str,
+        request_fingerprint: str,
     ) -> UsageReservation:
-        """Reserve one use or raise a public access/quota application error."""
+        """Reserve one use or raise a public access/quota application error.
+
+        ``request_fingerprint`` is a hash of the non-secret request fields.
+        A duplicate idempotency key with the same fingerprint replays the
+        existing reservation; a different fingerprint is a conflict.
+        """
         ...
 
     async def commit(
@@ -155,4 +161,17 @@ class FeedbackRepository(Protocol):
         runtime_metadata: RuntimeMetadata | None = None,
     ) -> ProblemReportReceipt:
         """Store a public issue with only explicitly approved runtime metadata."""
+        ...
+
+    async def register_feedback_token(
+        self,
+        *,
+        analysis_id: UUID,
+        feedback_token: str,
+    ) -> None:
+        """Store the feedback capability token hash for one analysis.
+
+        The raw token is returned to the browser exactly once and must never
+        be persisted or logged.
+        """
         ...

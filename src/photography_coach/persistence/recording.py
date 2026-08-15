@@ -8,6 +8,7 @@ bytes never enter this module.
 from datetime import datetime, timedelta
 import logging
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from photography_coach.persistence.json_text import dumps
@@ -31,21 +32,42 @@ class SqlAnalysisRecorder:
         self._session = session
 
     async def start(self, run: AnalysisRunStart) -> None:
-        """Create the running record before calling external model services."""
-        row = AnalysisRun(
-            analysis_id=run.analysis_id,
-            api_version=run.api_version,
-            status="running",
-            started_at=_naive(run.started_at),
-            media_type=run.image.media_type,
-            width=run.image.width,
-            height=run.image.height,
-            size_bytes=run.image.size_bytes,
-            shooting_intent=run.shooting_intent,
-            reservation_id=run.reservation_id,
+        """Create the running record before calling external model services.
+
+        Replays of an idempotent operation may reach this method for an
+        analysis that already exists; those are logged and skipped so the
+        retried attempt joins the same record.
+        """
+        existing = await self._session.get(AnalysisRun, run.analysis_id)
+        if existing is not None:
+            logger.warning(
+                "analysis_run_start_replayed",
+                extra={"event_data": {"analysis_id": str(run.analysis_id)}},
+            )
+            return
+        self._session.add(
+            AnalysisRun(
+                analysis_id=run.analysis_id,
+                api_version=run.api_version,
+                status="running",
+                started_at=_naive(run.started_at),
+                media_type=run.image.media_type,
+                width=run.image.width,
+                height=run.image.height,
+                size_bytes=run.image.size_bytes,
+                shooting_intent=run.shooting_intent,
+                reservation_id=run.reservation_id,
+            )
         )
-        self._session.add(row)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError:
+            # A concurrent replay created the record first; join it.
+            await self._session.rollback()
+            logger.warning(
+                "analysis_run_start_raced",
+                extra={"event_data": {"analysis_id": str(run.analysis_id)}},
+            )
         logger.info(
             "analysis_run_started",
             extra={"event_data": {"analysis_id": str(run.analysis_id)}},

@@ -19,6 +19,12 @@ class InvalidImageError(AppError):
     default_message = "The uploaded file is not a supported image."
 
 
+class InvalidRequestError(AppError):
+    status_code = 422
+    code = "invalid_request"
+    default_message = "The request data is invalid."
+
+
 class PayloadTooLargeError(AppError):
     status_code = 413
     code = "image_too_large"

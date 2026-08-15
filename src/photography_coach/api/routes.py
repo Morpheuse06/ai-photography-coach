@@ -2,13 +2,18 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Request, UploadFile
 
 from photography_coach.dependencies import (
     get_analysis_service,
+    get_control_plane_analysis_service,
     get_rag_analysis_service,
 )
-from photography_coach.errors import InvalidImageError, PayloadTooLargeError
+from photography_coach.errors import (
+    InvalidImageError,
+    InvalidRequestError,
+    PayloadTooLargeError,
+)
 from photography_coach.image_validation import (
     MAX_IMAGE_BYTES,
     ImageTooLargeError,
@@ -18,6 +23,7 @@ from photography_coach.image_validation import (
 )
 from photography_coach.schemas.analysis import AnalysisResponse, ErrorResponse
 from photography_coach.services.analysis import AnalysisService
+from photography_coach.services.control_plane import ControlPlaneAnalysisService
 from photography_coach.services.rag_analysis import RagAnalysisService
 
 
@@ -63,6 +69,7 @@ async def analyze_photo(
     responses=ANALYSIS_ERROR_RESPONSES,
 )
 async def analyze_photo_with_rag(
+    request: Request,
     photo: Annotated[
         UploadFile,
         File(description="One JPEG, PNG, or WebP photo, up to 10 MiB."),
@@ -72,11 +79,45 @@ async def analyze_photo_with_rag(
         str | None,
         Form(max_length=1_000, description="Optional shooting intent."),
     ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            description="Client retry key; required when the control plane is on.",
+        ),
+    ] = None,
+    access_code: Annotated[
+        str | None,
+        Header(
+            alias="X-Access-Code",
+            description="Optional raw access code; required in code_required mode.",
+        ),
+    ] = None,
+    control_plane: Annotated[
+        ControlPlaneAnalysisService | None,
+        Depends(get_control_plane_analysis_service),
+    ] = None,
 ) -> AnalysisResponse:
     """Validate a photo and analyze it with retrieved photography knowledge."""
 
     image_bytes, image = await _read_validated_photo(photo)
     normalized_intent = intent.strip() if intent and intent.strip() else None
+    if control_plane is not None:
+        if not idempotency_key:
+            raise InvalidRequestError(
+                "The Idempotency-Key header is required."
+            )
+        source = request.client.host if request.client else "unknown"
+        return await control_plane.analyze(
+            image_bytes,
+            image,
+            normalized_intent,
+            idempotency_key=idempotency_key,
+            access_code=(
+                access_code.strip() if access_code and access_code.strip() else None
+            ),
+            source=source,
+        )
     result = await service.analyze(image_bytes, image, normalized_intent)
     return result.response
 

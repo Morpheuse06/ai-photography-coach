@@ -75,8 +75,13 @@ class SqlUsageAuthorizer:
         analysis_id,
         access_code: str | None,
         idempotency_key: str,
+        request_fingerprint: str,
     ) -> UsageReservation:
-        """Reserve one use or raise a public access/quota application error."""
+        """Reserve one use or raise a public access/quota application error.
+
+        A duplicate idempotency key with the same request fingerprint replays
+        the existing reservation; a different fingerprint is a conflict.
+        """
         now = utc_now()
         policy = await self.get_or_create_policy()
         mode = AccessMode(policy.mode)
@@ -93,7 +98,9 @@ class SqlUsageAuthorizer:
             )
         )
         if existing is not None:
-            return self._replay_or_conflict(existing, code_row, mode)
+            return self._replay_or_conflict(
+                existing, code_row, mode, request_fingerprint
+            )
 
         await self._enforce_global_limits(policy, now)
 
@@ -143,6 +150,7 @@ class SqlUsageAuthorizer:
                         analysis_id=analysis_id,
                         access_code_id=code_row.id if code_row else None,
                         idempotency_hash=idempotency_hash,
+                        request_hash=request_fingerprint,
                         status="reserved",
                         expires_at=expires_at,
                     )
@@ -165,7 +173,9 @@ class SqlUsageAuthorizer:
                 )
             )
             if existing is not None:
-                return self._replay_or_conflict(existing, code_row, mode)
+                return self._replay_or_conflict(
+                    existing, code_row, mode, request_fingerprint
+                )
             raise
 
         logger.info(
@@ -396,25 +406,21 @@ class SqlUsageAuthorizer:
         existing: UsageReservationRow,
         code_row: AccessCode | None,
         mode: AccessMode,
+        request_fingerprint: str,
     ) -> UsageReservation:
         """Handle a duplicate idempotency key without touching balances."""
-        expected_code_id = code_row.id if code_row else None
-        if (
-            existing.status == "reserved"
-            and existing.expires_at > utc_now()
-            and existing.access_code_id == expected_code_id
-        ):
-            return UsageReservation(
-                reservation_id=existing.id,
-                analysis_id=existing.analysis_id,
-                mode=mode,
-                access_code_id=existing.access_code_id,
-                remaining_uses_after_reservation=(
-                    _remaining_uses(code_row) if code_row else None
-                ),
-                expires_at=as_aware_utc(existing.expires_at),
-            )
-        raise IdempotencyConflictError()
+        if existing.request_hash != request_fingerprint:
+            raise IdempotencyConflictError()
+        return UsageReservation(
+            reservation_id=existing.id,
+            analysis_id=existing.analysis_id,
+            mode=mode,
+            access_code_id=existing.access_code_id,
+            remaining_uses_after_reservation=(
+                _remaining_uses(code_row) if code_row else None
+            ),
+            expires_at=as_aware_utc(existing.expires_at),
+        )
 
     async def _enforce_global_limits(
         self,

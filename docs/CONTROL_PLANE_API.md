@@ -140,6 +140,10 @@ Provider 的原始响应。
 - 预占记录必须有过期时间，后台任务可释放进程崩溃遗留的预占。
 - 分析记录失败不能导致已经成功的模型请求被重复执行。
 - 数据库实现必须使用事务或条件更新，不能先读取余额再在另一个语句中随意扣减。
+- `reserve` 接收一个 `request_fingerprint`（对接口版本、图片哈希、意图和邀请码
+  哈希等非秘密请求字段的摘要）。同一幂等键 + 相同指纹按重试处理并回放原预占；
+  同一幂等键 + 不同指纹返回 `idempotency_conflict`。已终态的同指纹预占也回放，
+  由编排服务根据已保存的运行记录重建响应或重放已记录的错误。
 
 ## 5. 匿名模块评价
 
@@ -359,7 +363,7 @@ GET /api/admin/v1/exports/problem-reports.csv
 | 问题反馈 | `ProblemReportCreate`, `ProblemReportReceipt` |
 | 次数事务 | `UsageAuthorizer`, `UsageReservation` |
 | 分析生命周期 | `AnalysisRecorder`, `AnalysisRunStart`, `AnalysisRunFailure` |
-| 反馈存储 | `FeedbackRepository` |
+| 反馈存储 | `FeedbackRepository`（含 `register_feedback_token`，只保存哈希） |
 | 管理 API | `src/photography_coach/schemas/admin.py` 中的请求、详情、分页和仪表盘模型 |
 
 这些契约是稳定边界，不等于路由已经可调用。实现状态必须以 OpenAPI 实际注册路由和
