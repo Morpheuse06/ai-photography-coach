@@ -19,7 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def utc_now() -> datetime:
@@ -51,6 +51,8 @@ class AdminUser(Base):
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    sessions: Mapped[list["AdminSession"]] = relationship(back_populates="admin_user")
+
 
 class AdminSession(Base):
     __tablename__ = "admin_sessions"
@@ -65,6 +67,8 @@ class AdminSession(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utc_now
     )
+
+    admin_user: Mapped["AdminUser"] = relationship(back_populates="sessions")
 
 
 class AccessPolicyRow(Base):
@@ -94,6 +98,8 @@ class AccessCodeBatch(Base):
         DateTime, nullable=False, default=utc_now
     )
 
+    codes: Mapped[list["AccessCode"]] = relationship(back_populates="batch")
+
 
 class AccessCode(Base):
     __tablename__ = "access_codes"
@@ -118,6 +124,14 @@ class AccessCode(Base):
         DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
 
+    batch: Mapped["AccessCodeBatch"] = relationship(back_populates="codes")
+    reservations: Mapped[list["UsageReservation"]] = relationship(
+        back_populates="code"
+    )
+    usage_events: Mapped[list["AccessCodeUsageEvent"]] = relationship(
+        back_populates="code"
+    )
+
 
 class UsageReservation(Base):
     __tablename__ = "usage_reservations"
@@ -130,7 +144,6 @@ class UsageReservation(Base):
     idempotency_hash: Mapped[str] = mapped_column(
         String(64), unique=True, nullable=False
     )
-    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     release_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -139,6 +152,11 @@ class UsageReservation(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+    code: Mapped["AccessCode | None"] = relationship(back_populates="reservations")
+    events: Mapped[list["AccessCodeUsageEvent"]] = relationship(
+        back_populates="reservation"
     )
 
 
@@ -161,6 +179,11 @@ class AccessCodeUsageEvent(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utc_now
     )
+
+    reservation: Mapped["UsageReservation | None"] = relationship(
+        back_populates="events"
+    )
+    code: Mapped["AccessCode"] = relationship(back_populates="usage_events")
 
 
 class AnalysisRun(Base):
@@ -206,6 +229,10 @@ class AnalysisRun(Base):
         DateTime, nullable=True
     )
 
+    ratings: Mapped[list["DimensionRating"]] = relationship(
+        back_populates="run", passive_deletes=True
+    )
+
 
 class DimensionRating(Base):
     __tablename__ = "dimension_ratings"
@@ -232,6 +259,8 @@ class DimensionRating(Base):
         DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
 
+    run: Mapped["AnalysisRun"] = relationship(back_populates="ratings")
+
 
 class ProblemReport(Base):
     __tablename__ = "problem_reports"
@@ -253,6 +282,8 @@ class ProblemReport(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
+
+    run: Mapped["AnalysisRun | None"] = relationship()
 
 
 class AdminAuditEvent(Base):
