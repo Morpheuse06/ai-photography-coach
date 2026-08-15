@@ -52,6 +52,7 @@ export async function analyzePhoto(
   photo: File,
   intent: string,
   accessCode: string,
+  idempotencyKey: string,
 ): Promise<AnalysisResponse> {
   const formData = new FormData()
   formData.append('photo', photo)
@@ -59,8 +60,10 @@ export async function analyzePhoto(
     formData.append('intent', intent.trim())
   }
 
+  // The caller creates the key when the user's analysis operation starts
+  // and reuses it across retries, so the backend can deduplicate.
   const headers: Record<string, string> = {
-    'Idempotency-Key': crypto.randomUUID(),
+    'Idempotency-Key': idempotencyKey,
   }
   if (accessCode.trim()) {
     headers['X-Access-Code'] = accessCode.trim()

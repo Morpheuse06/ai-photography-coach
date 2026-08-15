@@ -21,6 +21,10 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const reportRef = useRef<HTMLElement>(null)
+  // One idempotency key per user operation: created on the first submit and
+  // reused for retries, so the backend never runs the same analysis twice.
+  // Any change to the photo, intent, or access code starts a new operation.
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null)
 
   useEffect(() => {
     if (!file) {
@@ -51,7 +55,18 @@ function App() {
     setAnalysis(null)
     setError(null)
     setConsent(false)
+    setIdempotencyKey(null)
     setStatus(nextFile ? 'selected' : 'idle')
+  }
+
+  const handleIntentChange = (value: string) => {
+    setIntent(value)
+    setIdempotencyKey(null)
+  }
+
+  const handleAccessCodeChange = (value: string) => {
+    setAccessCode(value)
+    setIdempotencyKey(null)
   }
 
   const handleSubmit = async () => {
@@ -59,8 +74,10 @@ function App() {
     setStatus('loading')
     setError(null)
     setAnalysis(null)
+    const key = idempotencyKey ?? crypto.randomUUID()
+    setIdempotencyKey(key)
     try {
-      const response = await analyzePhoto(file, intent, accessCode)
+      const response = await analyzePhoto(file, intent, accessCode, key)
       setAnalysis(response)
       setStatus('success')
     } catch (requestError) {
@@ -76,6 +93,7 @@ function App() {
     setConsent(false)
     setAnalysis(null)
     setError(null)
+    setIdempotencyKey(null)
     setStatus('idle')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -109,8 +127,8 @@ function App() {
           elapsedSeconds={elapsedSeconds}
           error={error}
           onFileChange={handleFileChange}
-          onIntentChange={setIntent}
-          onAccessCodeChange={setAccessCode}
+          onIntentChange={handleIntentChange}
+          onAccessCodeChange={handleAccessCodeChange}
           onConsentChange={setConsent}
           onSubmit={handleSubmit}
         />

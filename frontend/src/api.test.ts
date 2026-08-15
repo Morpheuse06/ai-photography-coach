@@ -17,7 +17,7 @@ describe('analyzePhoto', () => {
     )
     const photo = new File(['photo'], 'street.jpg', { type: 'image/jpeg' })
 
-    await analyzePhoto(photo, '  表现雨天的安静  ', '  PXC-AAAA-BBBB-CCCC-DDDD  ')
+    await analyzePhoto(photo, '  表现雨天的安静  ', '  PXC-AAAA-BBBB-CCCC-DDDD  ', 'test-key-1')
 
     const request = fetchMock.mock.calls[0]
     expect(request[0]).toBe('/api/v2/analyze')
@@ -26,7 +26,7 @@ describe('analyzePhoto', () => {
     expect(body.get('photo')).toBe(photo)
     expect(body.get('intent')).toBe('表现雨天的安静')
     const headers = request[1]?.headers as Record<string, string>
-    expect(headers['Idempotency-Key']).toBeTruthy()
+    expect(headers['Idempotency-Key']).toBe('test-key-1')
     expect(headers['X-Access-Code']).toBe('PXC-AAAA-BBBB-CCCC-DDDD')
   })
 
@@ -38,7 +38,7 @@ describe('analyzePhoto', () => {
       }),
     )
 
-    await analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', '')
+    await analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', '', 'test-key-2')
 
     const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>
     expect(headers['X-Access-Code']).toBeUndefined()
@@ -53,7 +53,7 @@ describe('analyzePhoto', () => {
     )
 
     await expect(
-      analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', ''),
+      analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', '', 'test-key-2'),
     ).rejects.toMatchObject({
       code: 'model_timeout',
       message: '本次分析超时，请稍后重试。',
@@ -72,7 +72,7 @@ describe('analyzePhoto', () => {
     )
 
     await expect(
-      analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', ''),
+      analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', '', 'test-key-2'),
     ).rejects.toMatchObject({
       code: 'access_quota_exhausted',
       message: '该邀请码的次数已用完。',
@@ -89,7 +89,7 @@ describe('analyzePhoto', () => {
     )
 
     await expect(
-      analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', ''),
+      analyzePhoto(new File(['x'], 'x.jpg', { type: 'image/jpeg' }), '', '', 'test-key-2'),
     ).rejects.toMatchObject({ code: 'invalid_response' })
   })
 })

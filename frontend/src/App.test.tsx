@@ -67,6 +67,66 @@ describe('App', () => {
     expect(screen.getAllByText('未提供')).toHaveLength(3)
   })
 
+  it('reuses the idempotency key on retry and renews it for a new photo', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () => {
+        if (fetchMock.mock.calls.length === 1) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'model_rate_limited', message: 'busy' },
+            }),
+            { status: 429, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        return new Response(JSON.stringify(analysisFixture), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    )
+    render(<App />)
+
+    await user.upload(
+      screen.getByLabelText('选择待分析照片'),
+      new File(['photo'], 'portrait.jpg', { type: 'image/jpeg' }),
+    )
+    await user.click(screen.getByRole('checkbox', { name: /同意将照片发送/ }))
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+    await screen.findByText('模型服务当前请求较多，请稍后重试。')
+
+    // The retry must reuse the same key so the backend deduplicates.
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+    await screen.findByRole('heading', { name: '你的摄影指导报告' })
+    const analyzeCalls = fetchMock.mock.calls.filter(
+      (call) => call[0] === '/api/v2/analyze',
+    )
+    const keys = analyzeCalls.map(
+      (call) =>
+        (call[1]?.headers as Record<string, string> | undefined)?.[
+          'Idempotency-Key'
+        ],
+    )
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toBe(keys[1])
+
+    // Choosing a new photo starts a new operation with a fresh key.
+    const newFile = new File(['other'], 'other.jpg', { type: 'image/jpeg' })
+    await user.upload(screen.getByLabelText('选择待分析照片'), newFile)
+    await user.click(screen.getByRole('checkbox', { name: /同意将照片发送/ }))
+    await user.click(screen.getByRole('button', { name: '开始分析' }))
+    await screen.findByRole('heading', { name: '你的摄影指导报告' })
+    const newKeys = fetchMock.mock.calls
+      .filter((call) => call[0] === '/api/v2/analyze')
+      .map(
+        (call) =>
+          (call[1]?.headers as Record<string, string> | undefined)?.[
+            'Idempotency-Key'
+          ],
+      )
+    expect(newKeys[2]).not.toBe(newKeys[0])
+  })
+
   it('shows an error and allows retrying', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.spyOn(globalThis, 'fetch')
