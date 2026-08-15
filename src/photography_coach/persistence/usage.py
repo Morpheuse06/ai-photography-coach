@@ -102,8 +102,6 @@ class SqlUsageAuthorizer:
                 existing, code_row, mode, request_fingerprint
             )
 
-        await self._enforce_global_limits(policy, now)
-
         reservation_id = uuid4()
         expires_at = now + timedelta(minutes=self._reservation_ttl_minutes)
         remaining: int | None = None
@@ -155,6 +153,13 @@ class SqlUsageAuthorizer:
                         expires_at=expires_at,
                     )
                 )
+                # The INSERT above is the transaction's first write in open
+                # mode, so it acquires the SQLite write lock; the limits
+                # below then read authoritative counts. A concurrent request
+                # blocks on the lock, sees this reservation, and is rejected
+                # instead of both requests passing the check.
+                await self._session.flush()
+                await self._enforce_global_limits(policy, now)
                 if code_row is not None:
                     self._session.add(
                         AccessCodeUsageEvent(
@@ -427,6 +432,12 @@ class SqlUsageAuthorizer:
         policy: AccessPolicyRow,
         now: datetime,
     ) -> None:
+        """Reject requests over the concurrent and daily budgets.
+
+        Called inside the reservation transaction after the reservation row
+        has been flushed, so the counts below include this request's own
+        claim and reads are serialized behind the write lock.
+        """
         live_reservations = await self._session.scalar(
             select(func.count())
             .select_from(UsageReservationRow)
@@ -435,7 +446,7 @@ class SqlUsageAuthorizer:
                 UsageReservationRow.expires_at > now,
             )
         )
-        if live_reservations >= policy.concurrent_analysis_limit:
+        if live_reservations > policy.concurrent_analysis_limit:
             raise ConcurrencyLimitReachedError()
 
         if policy.global_daily_limit is not None:
@@ -448,7 +459,10 @@ class SqlUsageAuthorizer:
                     UsageReservationRow.updated_at >= day_start,
                 )
             )
-            if consumed_today >= policy.global_daily_limit:
+            # Count live claims against the daily budget too, so the
+            # invariant consumed + live <= limit holds atomically even when
+            # reservations race past the check.
+            if consumed_today + live_reservations > policy.global_daily_limit:
                 raise GlobalQuotaExhaustedError()
 
     async def _load_reservation(

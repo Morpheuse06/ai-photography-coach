@@ -480,6 +480,68 @@ class UsageAuthorizationTests(unittest.IsolatedAsyncioTestCase):
                 request_fingerprint="fp-18",
             )
 
+    async def test_concurrent_reservations_respect_the_concurrency_limit(self) -> None:
+        session = self.new_session()
+        await self.seed_policy(session, concurrent_limit=1)
+
+        first_session = self.new_session()
+        second_session = self.new_session()
+        first = self.authorizer(first_session, concurrent_limit=1)
+        second = self.authorizer(second_session, concurrent_limit=1)
+
+        results = await asyncio.gather(
+            first.reserve(
+                analysis_id=uuid4(),
+                access_code=None,
+                idempotency_key="key-race-concurrency-1",
+                request_fingerprint="fp-race-concurrency-1",
+            ),
+            second.reserve(
+                analysis_id=uuid4(),
+                access_code=None,
+                idempotency_key="key-race-concurrency-2",
+                request_fingerprint="fp-race-concurrency-2",
+            ),
+            return_exceptions=True,
+        )
+
+        successes = [r for r in results if not isinstance(r, Exception)]
+        failures = [r for r in results if isinstance(r, Exception)]
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], ConcurrencyLimitReachedError)
+
+    async def test_concurrent_reservations_respect_the_daily_limit(self) -> None:
+        session = self.new_session()
+        await self.seed_policy(session, global_daily_limit=1)
+
+        first_session = self.new_session()
+        second_session = self.new_session()
+        first = self.authorizer(first_session, global_daily_limit=1)
+        second = self.authorizer(second_session, global_daily_limit=1)
+
+        results = await asyncio.gather(
+            first.reserve(
+                analysis_id=uuid4(),
+                access_code=None,
+                idempotency_key="key-race-daily-1",
+                request_fingerprint="fp-race-daily-1",
+            ),
+            second.reserve(
+                analysis_id=uuid4(),
+                access_code=None,
+                idempotency_key="key-race-daily-2",
+                request_fingerprint="fp-race-daily-2",
+            ),
+            return_exceptions=True,
+        )
+
+        successes = [r for r in results if not isinstance(r, Exception)]
+        failures = [r for r in results if isinstance(r, Exception)]
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], GlobalQuotaExhaustedError)
+
     async def test_ledger_balances_reconstruct_usage(self) -> None:
         session = self.new_session()
         await self.seed_policy(session, mode=AccessMode.CODE_REQUIRED)
