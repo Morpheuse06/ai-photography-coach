@@ -154,7 +154,9 @@ class ControlPlaneEndpointTests(unittest.TestCase):
         self.assertEqual(
             first.json()["report"], second.json()["report"]
         )
-        self.assertNotEqual(
+        # The replay returns the original response, including the same
+        # feedback token, so ratings from the first page keep working.
+        self.assertEqual(
             first.json()["interaction"]["feedback_token"],
             second.json()["interaction"]["feedback_token"],
         )

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///data/control_plane.db"
     admin_session_ttl_hours: float = Field(default=12.0, gt=0, le=168)
     reservation_ttl_minutes: int = Field(default=30, ge=1, le=120)
+    in_flight_wait_seconds: float = Field(default=300.0, ge=30, le=600)
     default_access_mode: Literal["open", "code_required", "closed"] = "open"
     default_per_source_hour_limit: int | None = Field(default=60, ge=1)
     default_global_daily_limit: int | None = Field(default=500, ge=1)

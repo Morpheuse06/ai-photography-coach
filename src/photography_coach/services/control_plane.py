@@ -6,6 +6,7 @@ Database transactions stay short: reserve and record before the external
 model call, confirm and consume afterwards.
 """
 
+import asyncio
 from datetime import UTC, datetime
 import hashlib
 import logging
@@ -43,6 +44,7 @@ from photography_coach.schemas.interaction import (
 )
 from photography_coach.schemas.report import PhotographyReport
 from photography_coach.security import generate_opaque_token, hash_secret
+from photography_coach.services.in_flight import AnalysisResponseRegistry
 from photography_coach.services.rag_analysis import RagAnalysisService
 from photography_coach.services.rate_limiting import SourceRateLimiter
 
@@ -61,6 +63,8 @@ class ControlPlaneAnalysisService:
         reservation_ttl_minutes: int,
         policy_defaults: PolicyDefaults,
         source_rate_limiter: SourceRateLimiter,
+        registry: AnalysisResponseRegistry,
+        in_flight_wait_seconds: float = 300,
     ) -> None:
         self._session = session
         self._rag_service = rag_service
@@ -71,6 +75,8 @@ class ControlPlaneAnalysisService:
         )
         self._recorder = SqlAnalysisRecorder(session)
         self._rate_limiter = source_rate_limiter
+        self._registry = registry
+        self._in_flight_wait_seconds = in_flight_wait_seconds
 
     async def analyze(
         self,
@@ -83,14 +89,69 @@ class ControlPlaneAnalysisService:
         source: str,
     ) -> AnalysisResponse:
         """Run one quota-protected analysis and return the interaction data."""
-        started_at = datetime.now(UTC)
         wall_started = perf_counter()
         await self._enforce_source_limit(source)
 
-        analysis_id = uuid4()
+        # The registry key combines the idempotency key and the request
+        # fingerprint, so a different request reusing the same key still
+        # reaches the authorizer and receives a 409 conflict.
         fingerprint = _request_fingerprint(
             image_bytes, image, shooting_intent, access_code
         )
+        in_flight_key = hash_secret(f"{idempotency_key}|{fingerprint}")
+
+        # A retry of an already completed request returns the original
+        # response, including the same feedback token.
+        cached = self._registry.get_response(in_flight_key)
+        if cached is not None:
+            return cached
+
+        # A retry while the first attempt is still running waits for it
+        # instead of calling the model a second time.
+        existing_future = self._registry.get_future(in_flight_key)
+        if existing_future is not None:
+            try:
+                return await asyncio.wait_for(
+                    existing_future,
+                    timeout=self._in_flight_wait_seconds,
+                )
+            except TimeoutError:
+                raise ControlPlaneUnavailableError(
+                    "The analysis is still processing. Please try again shortly."
+                ) from None
+
+        future = self._registry.register_future(in_flight_key)
+        try:
+            response = await self._execute(
+                image_bytes,
+                image,
+                shooting_intent,
+                idempotency_key=idempotency_key,
+                access_code=access_code,
+                fingerprint=fingerprint,
+                wall_started=wall_started,
+            )
+            self._registry.store_response(in_flight_key, response)
+            return response
+        except BaseException as exc:
+            self._registry.fail_future(in_flight_key, exc)
+            raise
+        finally:
+            self._registry.remove_future(in_flight_key, future)
+
+    async def _execute(
+        self,
+        image_bytes: bytes,
+        image: ValidatedImage,
+        shooting_intent: str | None,
+        *,
+        idempotency_key: str,
+        access_code: str | None,
+        fingerprint: str,
+        wall_started: float,
+    ) -> AnalysisResponse:
+        started_at = datetime.now(UTC)
+        analysis_id = uuid4()
         reservation = await self._authorizer.reserve(
             analysis_id=analysis_id,
             access_code=access_code,
@@ -125,17 +186,6 @@ class ControlPlaneAnalysisService:
             result = await self._rag_service.analyze(
                 image_bytes, image, shooting_intent
             )
-            completed_at = datetime.now(UTC)
-            await self._recorder.succeed(
-                run_analysis_id,
-                completed_at=completed_at,
-                report=result.response.report,
-                metadata=result.response.metadata,
-            )
-            access = await self._authorizer.commit(
-                reservation.reservation_id,
-                analysis_id=run_analysis_id,
-            )
         except AppError as exc:
             if owns_reservation:
                 await self._record_failure_and_release(
@@ -149,11 +199,40 @@ class ControlPlaneAnalysisService:
                 )
             raise
 
+        completed_at = datetime.now(UTC)
+        await self._recorder.succeed(
+            run_analysis_id,
+            completed_at=completed_at,
+            report=result.response.report,
+            metadata=result.response.metadata,
+        )
+        try:
+            access = await self._authorizer.commit(
+                reservation.reservation_id,
+                analysis_id=run_analysis_id,
+            )
+        except Exception as exc:
+            # The report is stored and the model call is paid for. Keep the
+            # reservation reserved so a client retry or the retention
+            # reconciler can confirm the quota instead of losing it.
+            logger.error(
+                "control_plane_commit_failed_after_success",
+                extra={
+                    "event_data": {
+                        "analysis_id": str(run_analysis_id),
+                        "error": type(exc).__name__,
+                    }
+                },
+            )
+            raise ControlPlaneUnavailableError(
+                "The quota confirmation is temporarily unavailable. Please retry shortly."
+            ) from exc
+
         feedback_token = generate_opaque_token()
         await register_feedback_token(
             self._session, run_analysis_id, feedback_token
         )
-        response = result.response.model_copy(
+        return result.response.model_copy(
             update={
                 "interaction": AnalysisInteraction(
                     analysis_id=run_analysis_id,
@@ -162,7 +241,6 @@ class ControlPlaneAnalysisService:
                 )
             }
         )
-        return response
 
     async def _enforce_source_limit(self, source: str) -> None:
         policy = await self._authorizer.get_or_create_policy()

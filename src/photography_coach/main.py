@@ -29,6 +29,7 @@ from photography_coach.persistence.engine import (
 )
 from photography_coach.persistence.usage import SqlUsageAuthorizer
 from photography_coach.schemas.analysis import ErrorDetail, ErrorResponse
+from photography_coach.services.in_flight import AnalysisResponseRegistry
 from photography_coach.services.rate_limiting import SourceRateLimiter
 from photography_coach.services.retention import RetentionService
 
@@ -63,6 +64,8 @@ async def application_lifespan(
     application.state.db_engine = None
     application.state.db_session_factory = None
     application.state.source_rate_limiter = None
+    application.state.login_rate_limiter = None
+    application.state.analysis_registry = None
     application.state.retention_task = None
     application.state.started_at = datetime.now(UTC)
     if settings.rag_enabled:
@@ -75,6 +78,10 @@ async def application_lifespan(
         application.state.db_engine = db_engine
         application.state.db_session_factory = session_factory_for(db_engine)
         application.state.source_rate_limiter = SourceRateLimiter()
+        application.state.login_rate_limiter = SourceRateLimiter(
+            window_seconds=60
+        )
+        application.state.analysis_registry = AnalysisResponseRegistry()
         application.state.retention_task = asyncio.create_task(
             _retention_loop(application),
             name="retention-cleanup",
@@ -95,17 +102,19 @@ async def application_lifespan(
         application.state.db_engine = None
         application.state.db_session_factory = None
         application.state.source_rate_limiter = None
+        application.state.login_rate_limiter = None
+        application.state.analysis_registry = None
 
 
 async def _retention_loop(application: FastAPI) -> None:
-    """Run one retention pass per configured interval in the background."""
+    """Run one retention pass shortly after startup and then per interval."""
     interval_seconds = (
         application.state.settings.retention_interval_hours * 3_600
     )
     await asyncio.sleep(RETENTION_FIRST_RUN_DELAY_SECONDS)
     while True:
-        await asyncio.sleep(interval_seconds)
         await _run_retention_pass(application)
+        await asyncio.sleep(interval_seconds)
 
 
 async def _run_retention_pass(application: FastAPI) -> None:

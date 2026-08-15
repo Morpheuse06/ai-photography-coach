@@ -208,4 +208,6 @@ async def get_control_plane_analysis_service(
             reservation_ttl_minutes=settings.reservation_ttl_minutes,
             policy_defaults=policy_defaults_from_settings(settings),
             source_rate_limiter=request.app.state.source_rate_limiter,
+            registry=request.app.state.analysis_registry,
+            in_flight_wait_seconds=settings.in_flight_wait_seconds,
         )

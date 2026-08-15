@@ -1,10 +1,12 @@
 """Tests for the quota-protected control-plane analysis orchestration."""
 
+import asyncio
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 from PIL import Image
@@ -13,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from photography_coach.errors import (
     AccessCodeRequiredError,
+    ControlPlaneUnavailableError,
     IdempotencyConflictError,
     ModelTimeoutError,
     RequestRateLimitedError,
@@ -29,7 +32,7 @@ from photography_coach.persistence.models import (
     AnalysisRun,
     UsageReservation as UsageReservationRow,
 )
-from photography_coach.persistence.usage import PolicyDefaults
+from photography_coach.persistence.usage import PolicyDefaults, SqlUsageAuthorizer
 from photography_coach.providers.mock import MockPhotographyProvider
 from photography_coach.schemas.analysis import (
     AnalysisMetadata,
@@ -41,8 +44,10 @@ from photography_coach.schemas.analysis import (
 from photography_coach.schemas.interaction import AccessMode
 from photography_coach.security import hash_secret
 from photography_coach.services.control_plane import ControlPlaneAnalysisService
+from photography_coach.services.in_flight import AnalysisResponseRegistry
 from photography_coach.services.rag_analysis import RagAnalysisResult
 from photography_coach.services.rate_limiting import SourceRateLimiter
+from photography_coach.services.retention import RetentionService
 
 RAW_CODE = "PXC-AAAA-BBBB-CCCC-DDDD"
 
@@ -108,6 +113,20 @@ class _CountingRagService:
         )
 
 
+class _GatedRagService(_CountingRagService):
+    """Blocks inside the model call until the test opens the gate."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.gate = asyncio.Event()
+        self.entered = 0
+
+    async def analyze(self, image_bytes, image, shooting_intent):
+        self.entered += 1
+        await self.gate.wait()
+        return await super().analyze(image_bytes, image, shooting_intent)
+
+
 class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -129,12 +148,14 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
         *,
         mode: AccessMode = AccessMode.OPEN,
         per_source_hour_limit: int | None = 1000,
+        rag_service=None,
+        registry: AnalysisResponseRegistry | None = None,
     ) -> tuple[ControlPlaneAnalysisService, AsyncSession]:
         session = self.session_factory()
         self._sessions.append(session)
         service = ControlPlaneAnalysisService(
             session=session,
-            rag_service=self.rag_service,
+            rag_service=rag_service or self.rag_service,
             reservation_ttl_minutes=30,
             policy_defaults=PolicyDefaults(
                 mode=mode,
@@ -143,6 +164,8 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
                 concurrent_analysis_limit=10,
             ),
             source_rate_limiter=SourceRateLimiter(),
+            registry=registry or AnalysisResponseRegistry(),
+            in_flight_wait_seconds=30,
         )
         return service, session
 
@@ -240,7 +263,9 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             second.report.model_dump_json(), first.report.model_dump_json()
         )
-        self.assertNotEqual(
+        # The replay returns the original response, including the same
+        # feedback token, so ratings from the first page keep working.
+        self.assertEqual(
             second.interaction.feedback_token, first.interaction.feedback_token
         )
         reservations = (
@@ -284,6 +309,109 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(AccessCodeRequiredError):
             await self._run(service, key="code-required-1")
+
+    async def test_concurrent_same_key_requests_run_the_model_once(self) -> None:
+        """A retry that arrives while the first attempt is in flight waits
+        for the first result instead of calling the model again."""
+        rag = _GatedRagService()
+        registry = AnalysisResponseRegistry()
+        service_a, _ = self.service(rag_service=rag, registry=registry)
+        service_b, _ = self.service(rag_service=rag, registry=registry)
+
+        task_a = asyncio.create_task(self._run(service_a, key="same-key"))
+        while rag.entered == 0:
+            await asyncio.sleep(0.01)
+
+        task_b = asyncio.create_task(self._run(service_b, key="same-key"))
+        await asyncio.sleep(0.05)
+        rag.gate.set()
+
+        response_a, response_b = await asyncio.gather(task_a, task_b)
+
+        self.assertEqual(rag.calls, 1)
+        assert response_a.interaction is not None
+        assert response_b.interaction is not None
+        self.assertEqual(
+            response_a.interaction.analysis_id,
+            response_b.interaction.analysis_id,
+        )
+        self.assertEqual(
+            response_a.interaction.feedback_token,
+            response_b.interaction.feedback_token,
+        )
+
+    async def test_concurrent_same_key_failure_propagates_to_both(self) -> None:
+        rag = _GatedRagService()
+        registry = AnalysisResponseRegistry()
+        service_a, _ = self.service(rag_service=rag, registry=registry)
+        service_b, _ = self.service(rag_service=rag, registry=registry)
+
+        task_a = asyncio.create_task(self._run(service_a, key="same-key-fail"))
+        while rag.entered == 0:
+            await asyncio.sleep(0.01)
+        task_b = asyncio.create_task(self._run(service_b, key="same-key-fail"))
+        await asyncio.sleep(0.05)
+
+        rag.fail_with = ModelTimeoutError()
+        rag.gate.set()
+        results = await asyncio.gather(task_a, task_b, return_exceptions=True)
+        self.assertTrue(all(isinstance(r, Exception) for r in results))
+        self.assertTrue(
+            all(isinstance(r, ModelTimeoutError) for r in results)
+        )
+
+    async def test_commit_failure_after_success_keeps_reservation(self) -> None:
+        """When quota confirmation fails after the report is stored, the
+        reservation must stay reserved so a retry or the retention
+        reconciler can confirm it; releasing would lose paid usage."""
+        service, session = self.service()
+
+        with patch.object(
+            service._authorizer,
+            "commit",
+            new=AsyncMock(
+                side_effect=ControlPlaneUnavailableError("injected")
+            ),
+        ):
+            with self.assertRaises(ControlPlaneUnavailableError):
+                await self._run(service, key="commit-failure-1")
+
+        run = await session.scalar(select(AnalysisRun))
+        self.assertEqual(run.status, "succeeded")
+        reservation = await session.scalar(select(UsageReservationRow))
+        self.assertEqual(reservation.status, "reserved")
+
+        # The retention reconciler consumes the quota afterwards.
+        counts = await RetentionService(
+            session,
+            authorizer=SqlUsageAuthorizer(
+                session,
+                reservation_ttl_minutes=30,
+                policy_defaults=PolicyDefaults(
+                    mode=AccessMode.OPEN,
+                    per_source_hour_limit=1000,
+                    global_daily_limit=None,
+                    concurrent_analysis_limit=10,
+                ),
+            ),
+        ).run_cleanup()
+        self.assertEqual(counts.reservations_reconciled, 1)
+        await session.refresh(reservation)
+        self.assertEqual(reservation.status, "consumed")
+
+    async def test_sequential_replay_returns_the_original_token(self) -> None:
+        service, _ = self.service()
+        first = await self._run(service, key="sequential-replay-1")
+        assert first.interaction is not None
+
+        second = await self._run(service, key="sequential-replay-1")
+        assert second.interaction is not None
+
+        self.assertEqual(self.rag_service.calls, 1)
+        self.assertEqual(
+            second.interaction.feedback_token,
+            first.interaction.feedback_token,
+        )
 
 
 if __name__ == "__main__":
