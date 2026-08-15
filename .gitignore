@@ -15,6 +15,10 @@ evals/results/
 # Rebuildable local vector database
 data/chroma/
 
+# Local control-plane database
+data/*.db
+data/*.db-*
+
 # Python-generated files
 __pycache__/
 *.py[cod]
