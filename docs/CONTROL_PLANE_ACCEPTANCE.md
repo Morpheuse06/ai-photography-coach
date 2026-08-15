@@ -4,6 +4,30 @@
 范围：管理端交接文档（`ADMIN_AGENT_HANDOFF.md`）第 10 节最低验收标准。
 当前为本地 SQLite 版本；PostgreSQL 迁移已按兼容写法准备，但未在真实 PG 上集成测试。
 
+## 复测修复记录（2026-08-15 验收后）
+
+故障注入与真实浏览器验收发现的 4 个阻塞问题已修复并有对应测试：
+
+1. **并发同键请求重复调用模型**：新增进程内 `AnalysisResponseRegistry`。
+   同幂等键 + 同请求指纹的并发请求等待首个请求的 Future 并共享同一响应
+   （含同一 feedback token）；已完成的响应缓存 10 分钟，顺序重试直接命中
+   缓存。测试强制两个同键请求同时进入并断言模型只调用一次。
+2. **报告成功后额度确认失败会释放额度**：确认失败不再走失败释放路径，
+   预占保持 `reserved`，由保留期任务或客户端重试完成确认。测试注入 commit
+   失败并断言状态为 `succeeded + reserved`，随后对账任务将其转 `consumed`。
+3. **全站并发与每日上限非原子**：限额检查移入预占写事务，在预占记录
+   INSERT 之后计数（该 INSERT 在 open 模式下先取得写锁），并发请求串行化
+   后按权威计数判定。每日上限改为 `consumed + live <= limit` 不变量。
+   测试强制并发上限为 1 时两个并发预占只有一个成功。
+4. **前端重试生成新幂等键**：幂等键改为用户操作级别——首次提交时创建，
+   重试复用；更换照片、修改意图或邀请码后生成新键。组件测试断言两次重试
+   的 `Idempotency-Key` 相同、换照片后更新。
+
+次要问题同步修复：重放返回原 feedback token（缓存命中时不再覆盖）；管理端
+375px 横向溢出（表格内滚动 + Grid min-width + 小屏表单）；登录限流改为独立
+60 秒窗口；保留期任务启动约 60 秒后先执行一次；验收文档补充 Mock 需独立
+`CHROMA_PATH` 与单进程注册表语义。
+
 ## 额度
 
 - [x] 两个并发请求争抢最后一次额度时只能一个预占成功（条件 UPDATE 原子预占）。
@@ -66,8 +90,22 @@ ADMIN_USERNAME=owner ADMIN_PASSWORD='至少十二位密码' \
 # 启动后访问 http://127.0.0.1:5173/admin.html
 ```
 
+注意：Chroma 索引会校验知识版本、Embedding 模型和维度元数据。用 Mock Provider
+验收时请使用独立的索引目录（例如 `CHROMA_PATH=data/chroma-mock`），避免与真实
+Embedding 模型建立的索引冲突导致启动失败。
+
 管理端路径：登录 `/api/admin/v1/sessions`；仪表盘 `/api/admin/v1/overview`；
 邀请码 `/api/admin/v1/access-code-batches`、`/api/admin/v1/access-codes`；
 分析记录 `/api/admin/v1/analysis-runs`；评价 `/api/admin/v1/ratings`；
 问题反馈 `/api/admin/v1/problem-reports`；系统 `/api/admin/v1/system/*`；
 审计 `/api/admin/v1/audit-events`；导出 `/api/admin/v1/exports/*.csv`。
+
+## 部署语义
+
+- 幂等去重注册表（等待并发同键请求、缓存近期响应）是**单进程**的：同一
+  uvicorn 进程内的并发重试共享首个请求的结果；多 worker 部署需要共享存储或
+  亲和路由，否则不同进程间的同键重试仍会各自调用模型（额度只扣一次）。
+- 全站并发与每日上限在预占事务内检查（写入锁之后计数），SQLite 与 PostgreSQL
+  均为原子；邀请码自身额度由条件 UPDATE 保证。
+- 登录限流使用独立的 60 秒窗口（每来源每分钟 5 次）；分析来源限流窗口为 1 小时。
+- 保留期任务在启动约 60 秒后执行第一次，之后按 `RETENTION_INTERVAL_HOURS` 周期执行。

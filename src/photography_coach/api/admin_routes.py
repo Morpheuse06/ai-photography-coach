@@ -55,6 +55,7 @@ from photography_coach.schemas.admin import (
 
 admin_router = APIRouter(prefix="/api/admin/v1", tags=["admin"])
 
+# Enforced with a dedicated 60-second limiter window (login_rate_limiter).
 LOGIN_ATTEMPTS_PER_SOURCE_MINUTE = 5
 DEFAULT_PAGE_SIZE = 20
 
@@ -97,7 +98,7 @@ async def create_admin_session(
 ) -> AdminSessionCreated:
     """Exchange credentials for a short-lived bearer token."""
     source = request.client.host if request.client else "unknown"
-    limiter = getattr(request.app.state, "source_rate_limiter", None)
+    limiter = getattr(request.app.state, "login_rate_limiter", None)
     if limiter is not None and not limiter.allow(
         f"admin-login:{source}", limit=LOGIN_ATTEMPTS_PER_SOURCE_MINUTE
     ):

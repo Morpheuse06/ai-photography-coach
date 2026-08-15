@@ -89,6 +89,8 @@ python scripts/create_admin.py --username owner
 ```
 
 数据库表结构由 Alembic 管理：`alembic upgrade head` 应用迁移（本地启动也会自动建表）。
+用 Mock Provider 验收时请给独立索引目录（如 `CHROMA_PATH=data/chroma-mock`），
+避免与真实 Embedding 模型建立的索引元数据冲突。
 详细说明见 [docs/CONTROL_PLANE_ACCEPTANCE.md](docs/CONTROL_PLANE_ACCEPTANCE.md) 和
 [docs/CONTROL_PLANE_API.md](docs/CONTROL_PLANE_API.md)。未启用控制面时，V2 接口与
 旧行为完全一致。
