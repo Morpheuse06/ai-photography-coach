@@ -2,7 +2,7 @@
 
 最后更新：2026-08-15  
 契约版本：`control-plane-v1-draft`  
-状态：Schema 与 Python Protocol 已实现；HTTP 路由和持久化尚未实现
+状态：已实现——HTTP 路由、SQLite 持久化、额度事务、管理控制台与保留期任务均已可用
 
 ## 1. 文档目的
 
@@ -16,7 +16,9 @@
 - `src/photography_coach/ports/control_plane.py`：额度、记录和反馈存储接口
 - `AnalysisResponse.interaction`：向后兼容的可选扩展点
 
-本文中的路由尚未注册。数据库、鉴权和事务完成前，不能创建返回假成功的占位接口。
+实现状态以 OpenAPI 实际注册路由和测试为准。`CONTROL_PLANE_ENABLED=false`（默认）时
+行为与 V2 本地版完全一致；启用后 `/api/v2/analyze` 要求 `Idempotency-Key`，并按策略
+校验邀请码、限流和额度。
 
 ## 2. 共同规则
 

@@ -40,6 +40,7 @@ V2 仍是清晰的固定工作流，因此使用普通 Python、FastAPI、Chroma
 - [项目知识手册](docs/PROJECT_KNOWLEDGE.md)：从 V1 到 V2 的开发回顾、架构、完整请求链路、RAG 设计、模块职责、排错方法和初学者名词表。
 - [控制面与反馈 API 契约](docs/CONTROL_PLANE_API.md)：邀请码额度、匿名评价、问题反馈和管理接口的共同约定。
 - [管理端 Agent 开发交接](docs/ADMIN_AGENT_HANDOFF.md)：数据库、事务、安全边界、实施顺序和验收标准。
+- [控制面验收清单](docs/CONTROL_PLANE_ACCEPTANCE.md)：额度、记录、反馈、管理端和回归的验收结果。
 - [V1 验收清单](docs/V1_ACCEPTANCE.md)：V1 功能、隐私、响应式和测试验收。
 - [V2 本地验收清单](docs/V2_ACCEPTANCE.md)：RAG 流程、本地浏览器测试和真实 Provider 验证状态。
 
@@ -71,6 +72,26 @@ npm run dev
 ```
 
 打开 <http://127.0.0.1:5173>。开发服务器会把 `/api` 请求转发给本地 FastAPI。
+
+## 管理控制台
+
+控制面默认关闭；启用后提供邀请码额度、匿名评价、分析记录、问题反馈和管理 API：
+
+```bash
+# .env 增加
+CONTROL_PLANE_ENABLED=true
+DATABASE_URL=sqlite+aiosqlite:///data/control_plane.db
+
+# 创建第一个管理员（密码至少 12 位，只在本地保存 Argon2id 哈希）
+python scripts/create_admin.py --username owner
+
+# 重启后端，访问 http://127.0.0.1:5173/admin.html
+```
+
+数据库表结构由 Alembic 管理：`alembic upgrade head` 应用迁移（本地启动也会自动建表）。
+详细说明见 [docs/CONTROL_PLANE_ACCEPTANCE.md](docs/CONTROL_PLANE_ACCEPTANCE.md) 和
+[docs/CONTROL_PLANE_API.md](docs/CONTROL_PLANE_API.md)。未启用控制面时，V2 接口与
+旧行为完全一致。
 
 ## 调用分析接口
 
@@ -201,4 +222,4 @@ frontend/src/
 
 ## 暂未包含
 
-数据库、用户系统、历史趋势、自动修图、Docker 和复杂 Agent 工作流仍未包含，将在后续版本按真实需求加入。
+用户注册、普通用户账号、多角色 RBAC、自动修图、Docker 和复杂 Agent 工作流仍未包含，将在后续版本按真实需求加入。控制面已提供 SQLite 单机版的管理员账号、额度、记录和反馈能力，并保留 PostgreSQL 迁移兼容写法。

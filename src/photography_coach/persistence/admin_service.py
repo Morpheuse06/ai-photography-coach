@@ -844,14 +844,25 @@ class SqlAdminService:
     async def _series(self, window: OverviewWindow, bucket: str) -> list[MetricBucket]:
         if bucket == "day":
             format_spec = "%Y-%m-%d"
+            trunc_unit = "day"
             step = timedelta(days=1)
         elif bucket == "hour":
             format_spec = "%Y-%m-%d %H:00"
+            trunc_unit = "hour"
             step = timedelta(hours=1)
         else:
             raise InvalidRequestError("bucket must be 'day' or 'hour'.")
 
-        expression = func.strftime(format_spec, AnalysisRun.started_at)
+        # Bucketing is dialect-specific: strftime on SQLite, date_trunc +
+        # to_char on PostgreSQL. Both produce the same string labels.
+        dialect = self._session.get_bind().dialect.name
+        if dialect == "postgresql":
+            expression = func.to_char(
+                func.date_trunc(trunc_unit, AnalysisRun.started_at),
+                format_spec.replace("%H:00", "HH24:00"),
+            )
+        else:
+            expression = func.strftime(format_spec, AnalysisRun.started_at)
         rows = (
             await self._session.execute(
                 select(
@@ -892,9 +903,7 @@ class SqlAdminService:
         vote_rows = (
             await self._session.execute(
                 select(
-                    func.strftime(
-                        format_spec, AnalysisRun.started_at
-                    ).label("bucket"),
+                    expression.label("bucket"),
                     func.coalesce(
                         func.sum(
                             case((DimensionRating.vote == "up", 1), else_=0)

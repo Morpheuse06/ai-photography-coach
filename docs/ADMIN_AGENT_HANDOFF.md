@@ -3,6 +3,9 @@
 最后更新：2026-08-15  
 目标：实现 AI 摄影教练的持久化控制面、管理 API 和管理页面
 
+> 状态：**已完成**（2026-08-15，分支 `codex/control-plane-admin`）。实现与验收结果见
+> `docs/CONTROL_PLANE_ACCEPTANCE.md`；契约细节以 `docs/CONTROL_PLANE_API.md` 为准。
+
 ## 1. 开始前必须阅读
 
 1. `docs/PROJECT_KNOWLEDGE.md`

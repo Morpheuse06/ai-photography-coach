@@ -195,6 +195,36 @@ class FeedbackRouteTests(unittest.TestCase):
         )
         self.assertEqual(too_short.status_code, 422)
 
+    def test_all_eight_targets_accept_upsert_and_delete(self) -> None:
+        interaction = self._analyze()
+        targets = [
+            "composition",
+            "lighting",
+            "color",
+            "subject_expression",
+            "visual_storytelling",
+            "priority_actions",
+            "shooting_exercise",
+            "overall",
+        ]
+        headers = {"Authorization": f"Bearer {interaction['feedback_token']}"}
+        analysis_id = interaction["analysis_id"]
+
+        for target in targets:
+            created = self.client.put(
+                f"/api/v2/analyses/{analysis_id}/ratings/{target}",
+                json={"vote": "up", "reason_codes": []},
+                headers=headers,
+            )
+            self.assertEqual(created.status_code, 200, target)
+            self.assertEqual(created.json()["target"], target)
+
+            deleted = self.client.delete(
+                f"/api/v2/analyses/{analysis_id}/ratings/{target}",
+                headers=headers,
+            )
+            self.assertEqual(deleted.status_code, 204, target)
+
     def test_feedback_rate_limiting(self) -> None:
         interaction = self._analyze()
         with patch.object(
