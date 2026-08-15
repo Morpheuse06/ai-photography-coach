@@ -38,6 +38,8 @@ V2 仍是清晰的固定工作流，因此使用普通 Python、FastAPI、Chroma
 ## 项目文档
 
 - [项目知识手册](docs/PROJECT_KNOWLEDGE.md)：从 V1 到 V2 的开发回顾、架构、完整请求链路、RAG 设计、模块职责、排错方法和初学者名词表。
+- [控制面与反馈 API 契约](docs/CONTROL_PLANE_API.md)：邀请码额度、匿名评价、问题反馈和管理接口的共同约定。
+- [管理端 Agent 开发交接](docs/ADMIN_AGENT_HANDOFF.md)：数据库、事务、安全边界、实施顺序和验收标准。
 - [V1 验收清单](docs/V1_ACCEPTANCE.md)：V1 功能、隐私、响应式和测试验收。
 - [V2 本地验收清单](docs/V2_ACCEPTANCE.md)：RAG 流程、本地浏览器测试和真实 Provider 验证状态。
 

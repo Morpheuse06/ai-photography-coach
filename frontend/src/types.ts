@@ -66,6 +66,14 @@ export type AnalysisMetadata = {
 export type AnalysisResponse = {
   report: PhotographyReport
   metadata: AnalysisMetadata
+  interaction?: {
+    analysis_id: string
+    feedback_token: string
+    access: {
+      mode: 'open' | 'code_required' | 'closed'
+      remaining_uses: number | null
+    }
+  } | null
 }
 
 export type ApiErrorResponse = {

@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from photography_coach.schemas.interaction import AnalysisInteraction
 from photography_coach.schemas.report import PhotographyReport
 
 
@@ -55,6 +56,13 @@ class AnalysisResponse(BaseModel):
 
     report: PhotographyReport
     metadata: AnalysisMetadata
+    interaction: AnalysisInteraction | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Identifiers and quota state populated when the control plane is enabled."
+        ),
+    )
 
 
 class ErrorDetail(BaseModel):

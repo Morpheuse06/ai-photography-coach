@@ -103,7 +103,22 @@ function isAnalysisResponse(value: unknown): value is AnalysisResponse {
     isRecord(value.report.next_shooting_exercise) &&
     typeof value.metadata.provider === 'string' &&
     typeof value.metadata.model === 'string' &&
-    isRetrievalMetadata(value.metadata.retrieval)
+    isRetrievalMetadata(value.metadata.retrieval) &&
+    isAnalysisInteraction(value.interaction)
+  )
+}
+
+function isAnalysisInteraction(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  return (
+    isRecord(value) &&
+    typeof value.analysis_id === 'string' &&
+    typeof value.feedback_token === 'string' &&
+    isRecord(value.access) &&
+    ['open', 'code_required', 'closed'].includes(String(value.access.mode)) &&
+    (value.access.remaining_uses === null ||
+      (typeof value.access.remaining_uses === 'number' &&
+        value.access.remaining_uses >= 0))
   )
 }
 
