@@ -1,4 +1,13 @@
-import type { AnalysisResponse, ApiErrorResponse } from './types'
+import type {
+  AnalysisResponse,
+  ApiErrorResponse,
+  ProblemCategory,
+  ProblemReportReceipt,
+  RatingReasonCode,
+  RatingReceipt,
+  RatingTarget,
+  RatingVote,
+} from './types'
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_image: '这不是有效的 JPEG、PNG 或 WebP 图片，请重新选择。',
@@ -9,6 +18,18 @@ const ERROR_MESSAGES: Record<string, string> = {
   model_unavailable: '模型服务暂时不可用，请稍后重试。',
   model_timeout: '本次分析超时，请稍后重试。',
   internal_error: '服务器出现异常，请稍后重试。',
+  access_code_required: '当前需要邀请码才能分析，请填写后重试。',
+  access_denied: '邀请码无效、已过期或已撤销，请检查后重试。',
+  analysis_closed: '新分析暂时关闭，请稍后再来。',
+  idempotency_conflict: '请求重放冲突，请刷新页面后重试。',
+  access_quota_exhausted: '该邀请码的次数已用完。',
+  request_rate_limited: '提交过于频繁，请稍后再试。',
+  global_quota_exhausted: '今日分析额度已用完，请明天再来。',
+  concurrency_limit_reached: '同时分析的人数较多，请稍后再试。',
+  control_plane_unavailable: '分析服务暂时不可用，请稍后重试。',
+  feedback_forbidden: '反馈凭据无效，请重新分析后再评价。',
+  feedback_rate_limited: '反馈提交过于频繁，请稍后再试。',
+  analysis_not_found: '该次分析已不存在，无法提交反馈。',
 }
 
 export class AnalysisApiError extends Error {
@@ -30,6 +51,7 @@ export class AnalysisApiError extends Error {
 export async function analyzePhoto(
   photo: File,
   intent: string,
+  accessCode: string,
 ): Promise<AnalysisResponse> {
   const formData = new FormData()
   formData.append('photo', photo)
@@ -37,11 +59,19 @@ export async function analyzePhoto(
     formData.append('intent', intent.trim())
   }
 
+  const headers: Record<string, string> = {
+    'Idempotency-Key': crypto.randomUUID(),
+  }
+  if (accessCode.trim()) {
+    headers['X-Access-Code'] = accessCode.trim()
+  }
+
   let response: Response
   try {
     response = await fetch('/api/v2/analyze', {
       method: 'POST',
       body: formData,
+      headers,
     })
   } catch {
     throw new AnalysisApiError(
@@ -71,6 +101,91 @@ export async function analyzePhoto(
   }
 
   return payload
+}
+
+export async function upsertRating(
+  analysisId: string,
+  feedbackToken: string,
+  target: RatingTarget,
+  vote: RatingVote,
+  reasonCodes: RatingReasonCode[] = [],
+  comment: string | null = null,
+): Promise<RatingReceipt> {
+  return feedbackRequest<RatingReceipt>(
+    `/api/v2/analyses/${analysisId}/ratings/${target}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ vote, reason_codes: reasonCodes, comment }),
+    },
+    feedbackToken,
+  )
+}
+
+export async function deleteRating(
+  analysisId: string,
+  feedbackToken: string,
+  target: RatingTarget,
+): Promise<void> {
+  await feedbackRequest<null>(
+    `/api/v2/analyses/${analysisId}/ratings/${target}`,
+    { method: 'DELETE' },
+    feedbackToken,
+  )
+}
+
+export async function submitProblemReport(
+  payload: {
+    analysis_id: string | null
+    category: ProblemCategory
+    message: string
+    include_runtime_metadata: boolean
+  },
+): Promise<ProblemReportReceipt> {
+  return feedbackRequest<ProblemReportReceipt>(
+    '/api/v2/problem-reports',
+    { method: 'POST', body: JSON.stringify(payload) },
+    null,
+  )
+}
+
+async function feedbackRequest<T>(
+  path: string,
+  options: RequestInit,
+  feedbackToken: string | null,
+): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (feedbackToken !== null) {
+    headers.Authorization = `Bearer ${feedbackToken}`
+  }
+
+  let response: Response
+  try {
+    response = await fetch(path, { ...options, headers })
+  } catch {
+    throw new AnalysisApiError(
+      '无法连接分析服务，请确认后端已经启动。',
+      'network_error',
+      null,
+    )
+  }
+
+  if (response.status === 204) {
+    return null as T
+  }
+
+  const payload = await readJson(response)
+  if (!response.ok) {
+    const errorPayload = isApiErrorResponse(payload) ? payload : null
+    const code = errorPayload?.error.code ?? `http_${response.status}`
+    throw new AnalysisApiError(
+      ERROR_MESSAGES[code] ?? '反馈提交失败，请稍后重试。',
+      code,
+      response.status,
+    )
+  }
+  return payload as T
 }
 
 async function readJson(response: Response): Promise<unknown> {

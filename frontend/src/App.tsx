@@ -3,6 +3,7 @@ import { analyzePhoto } from './api'
 import './App.css'
 import { AnalysisReport } from './components/AnalysisReport'
 import { PhotoForm } from './components/PhotoForm'
+import { ProblemReportForm } from './components/ProblemReportForm'
 import type { AnalysisResponse } from './types'
 
 type AppStatus = 'idle' | 'selected' | 'loading' | 'success' | 'error'
@@ -13,6 +14,7 @@ function App() {
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [intent, setIntent] = useState('')
+  const [accessCode, setAccessCode] = useState('')
   const [consent, setConsent] = useState(false)
   const [status, setStatus] = useState<AppStatus>('idle')
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null)
@@ -58,7 +60,7 @@ function App() {
     setError(null)
     setAnalysis(null)
     try {
-      const response = await analyzePhoto(file, intent)
+      const response = await analyzePhoto(file, intent, accessCode)
       setAnalysis(response)
       setStatus('success')
     } catch (requestError) {
@@ -70,6 +72,7 @@ function App() {
   const reset = () => {
     setFile(null)
     setIntent('')
+    setAccessCode('')
     setConsent(false)
     setAnalysis(null)
     setError(null)
@@ -100,12 +103,14 @@ function App() {
           file={file}
           previewUrl={previewUrl}
           intent={intent}
+          accessCode={accessCode}
           consent={consent}
           isLoading={status === 'loading'}
           elapsedSeconds={elapsedSeconds}
           error={error}
           onFileChange={handleFileChange}
           onIntentChange={setIntent}
+          onAccessCodeChange={setAccessCode}
           onConsentChange={setConsent}
           onSubmit={handleSubmit}
         />
@@ -126,6 +131,12 @@ function App() {
           onAnalyzeAnother={reset}
         />
       )}
+
+      <section className="problem-report-section">
+        <ProblemReportForm
+          analysisId={analysis?.interaction?.analysis_id ?? null}
+        />
+      </section>
 
       <footer>
         <p>AI Photography Coach · V2</p>

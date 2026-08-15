@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
-import type { AnalysisResponse } from '../types'
+import type { AnalysisResponse, RatingTarget } from '../types'
 import { DimensionCard } from './DimensionCard'
+import { RatingButtons } from './RatingButtons'
 
 const dimensionLabels = {
   composition: '构图',
@@ -21,6 +22,16 @@ export const AnalysisReport = forwardRef<HTMLElement, AnalysisReportProps>(
   function AnalysisReport({ analysis, previewUrl, intent, onAnalyzeAnother }, ref) {
     const { report, metadata } = analysis
     const exercise = report.next_shooting_exercise
+    const interaction = analysis.interaction ?? null
+    const feedbackFor = (target: RatingTarget, label: string) =>
+      interaction === null ? null : (
+        <RatingButtons
+          analysisId={interaction.analysis_id}
+          feedbackToken={interaction.feedback_token}
+          target={target}
+          label={label}
+        />
+      )
 
     return (
       <section className="report" aria-labelledby="report-title" ref={ref} tabIndex={-1}>
@@ -54,8 +65,21 @@ export const AnalysisReport = forwardRef<HTMLElement, AnalysisReportProps>(
               <dt>图片</dt>
               <dd>{metadata.image.width} × {metadata.image.height}</dd>
             </div>
+            {interaction?.access.remaining_uses !== null &&
+              interaction?.access.remaining_uses !== undefined && (
+                <div>
+                  <dt>剩余次数</dt>
+                  <dd>{interaction.access.remaining_uses}</dd>
+                </div>
+              )}
           </dl>
         </div>
+
+        {interaction !== null && (
+          <p className="feedback-note">
+            你的反馈完全匿名。反馈凭据只保存在当前页面中，关闭页面后无法找回。
+          </p>
+        )}
 
         <div className="dimensions-grid">
           {Object.entries(dimensionLabels).map(([key, label], index) => (
@@ -64,6 +88,7 @@ export const AnalysisReport = forwardRef<HTMLElement, AnalysisReportProps>(
               index={index + 1}
               title={label}
               assessment={report.dimensions[key as keyof typeof dimensionLabels]}
+              feedback={feedbackFor(key as RatingTarget, label)}
             />
           ))}
         </div>
@@ -82,6 +107,7 @@ export const AnalysisReport = forwardRef<HTMLElement, AnalysisReportProps>(
               </li>
             ))}
           </ol>
+          {feedbackFor('priority_actions', '优先动作')}
         </section>
 
         <section className="exercise" aria-labelledby="exercise-title">
@@ -104,6 +130,11 @@ export const AnalysisReport = forwardRef<HTMLElement, AnalysisReportProps>(
               </ul>
             </div>
           </div>
+          {feedbackFor('shooting_exercise', '拍摄练习')}
+        </section>
+
+        <section className="overall-rating" aria-label="总体评价">
+          {feedbackFor('overall', '整份报告')}
         </section>
 
         <details className="metadata">

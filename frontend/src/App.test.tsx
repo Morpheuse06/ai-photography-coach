@@ -21,7 +21,7 @@ describe('App', () => {
     expect(screen.getByAltText('待分析照片预览')).toBeInTheDocument()
     expect(submit).toBeDisabled()
 
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: /同意将照片发送/ }))
     expect(submit).toBeEnabled()
   })
 
@@ -54,7 +54,7 @@ describe('App', () => {
       new File(['photo'], 'portrait.jpg', { type: 'image/jpeg' }),
     )
     await user.type(screen.getByLabelText(/拍摄意图/), '表现安静的情绪')
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: /同意将照片发送/ }))
     await user.click(screen.getByRole('button', { name: '开始分析' }))
 
     expect(await screen.findByRole('heading', { name: '你的摄影指导报告' })).toBeInTheDocument()
@@ -88,7 +88,7 @@ describe('App', () => {
       screen.getByLabelText('选择待分析照片'),
       new File(['photo'], 'portrait.jpg', { type: 'image/jpeg' }),
     )
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: /同意将照片发送/ }))
     await user.click(screen.getByRole('button', { name: '开始分析' }))
     expect(await screen.findByText('模型服务当前请求较多，请稍后重试。')).toBeInTheDocument()
 

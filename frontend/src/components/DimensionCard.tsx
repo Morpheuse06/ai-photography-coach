@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { DimensionAssessment } from '../types'
 import { Rating } from './Rating'
 
@@ -5,6 +7,7 @@ type DimensionCardProps = {
   index: number
   title: string
   assessment: DimensionAssessment
+  feedback?: ReactNode
 }
 
 function TextList({ items }: { items: string[] }) {
@@ -17,7 +20,7 @@ function TextList({ items }: { items: string[] }) {
   )
 }
 
-export function DimensionCard({ index, title, assessment }: DimensionCardProps) {
+export function DimensionCard({ index, title, assessment, feedback }: DimensionCardProps) {
   return (
     <article className="dimension-card">
       <div className="dimension-heading">
@@ -46,6 +49,7 @@ export function DimensionCard({ index, title, assessment }: DimensionCardProps) 
           <TextList items={assessment.improvement_suggestions} />
         </section>
       </div>
+      {feedback}
     </article>
   )
 }

@@ -82,3 +82,48 @@ export type ApiErrorResponse = {
     message: string
   }
 }
+
+export type RatingTarget =
+  | 'composition'
+  | 'lighting'
+  | 'color'
+  | 'subject_expression'
+  | 'visual_storytelling'
+  | 'priority_actions'
+  | 'shooting_exercise'
+  | 'overall'
+
+export type RatingVote = 'up' | 'down'
+
+export type RatingReasonCode =
+  | 'not_grounded'
+  | 'generic_advice'
+  | 'inaccurate'
+  | 'not_actionable'
+  | 'contradictory'
+  | 'invented_detail'
+  | 'hard_to_understand'
+  | 'other'
+
+export type RatingReceipt = {
+  rating_id: string
+  analysis_id: string
+  target: RatingTarget
+  vote: RatingVote
+  created_at: string
+  updated_at: string
+}
+
+export type ProblemCategory =
+  | 'bug'
+  | 'report_quality'
+  | 'performance'
+  | 'usability'
+  | 'privacy'
+  | 'other'
+
+export type ProblemReportReceipt = {
+  problem_report_id: string
+  status: string
+  created_at: string
+}

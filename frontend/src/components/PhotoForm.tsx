@@ -5,12 +5,14 @@ type PhotoFormProps = {
   file: File | null
   previewUrl: string
   intent: string
+  accessCode: string
   consent: boolean
   isLoading: boolean
   elapsedSeconds: number
   error: string | null
   onFileChange: (file: File | null) => void
   onIntentChange: (intent: string) => void
+  onAccessCodeChange: (accessCode: string) => void
   onConsentChange: (consent: boolean) => void
   onSubmit: () => void
 }
@@ -19,12 +21,14 @@ export function PhotoForm({
   file,
   previewUrl,
   intent,
+  accessCode,
   consent,
   isLoading,
   elapsedSeconds,
   error,
   onFileChange,
   onIntentChange,
+  onAccessCodeChange,
   onConsentChange,
   onSubmit,
 }: PhotoFormProps) {
@@ -120,6 +124,21 @@ export function PhotoForm({
           rows={4}
           placeholder="例如：我想表现雨天街道的孤独感"
           onChange={(event) => onIntentChange(event.target.value)}
+          disabled={isLoading}
+        />
+      </div>
+
+      <div className="access-code-field">
+        <div className="field-heading">
+          <label htmlFor="access-code">邀请码 <span>选填</span></label>
+        </div>
+        <input
+          id="access-code"
+          type="text"
+          value={accessCode}
+          maxLength={200}
+          placeholder="例如 PXC-ABCD-EFGH-JKLM-NPQR"
+          onChange={(event) => onAccessCodeChange(event.target.value)}
           disabled={isLoading}
         />
       </div>
