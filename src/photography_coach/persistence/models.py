@@ -279,7 +279,9 @@ class ProblemReport(Base):
     tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     runtime_metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, index=True, default=utc_now
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
