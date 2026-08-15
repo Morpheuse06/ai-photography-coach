@@ -35,6 +35,12 @@
 
 V2 仍是清晰的固定工作流，因此使用普通 Python、FastAPI、Chroma 和模型官方兼容接口，没有引入 LangChain 或 LangGraph。
 
+## 项目文档
+
+- [项目知识手册](docs/PROJECT_KNOWLEDGE.md)：从 V1 到 V2 的开发回顾、架构、完整请求链路、RAG 设计、模块职责、排错方法和初学者名词表。
+- [V1 验收清单](docs/V1_ACCEPTANCE.md)：V1 功能、隐私、响应式和测试验收。
+- [V2 本地验收清单](docs/V2_ACCEPTANCE.md)：RAG 流程、本地浏览器测试和真实 Provider 验证状态。
+
 ## 本地运行
 
 要求 Python 3.11 或以上。

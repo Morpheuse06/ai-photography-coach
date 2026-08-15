@@ -19,7 +19,7 @@ accounts, history, a database, automatic editing, or an open-ended agent graph.
 - [x] V1 responses remain compatible with absent retrieval metadata.
 - [x] V2 responses expose non-secret retrieval metadata.
 - [x] The React client submits photos to `/api/v2/analyze`.
-- [x] Backend unit and HTTP tests pass: 165 tests.
+- [x] Backend unit and HTTP tests pass: 167 tests.
 - [x] Frontend lint, TypeScript build, and component tests pass: 9 tests.
 
 ## Browser smoke test
