@@ -102,7 +102,6 @@ function App() {
     <main className="app-shell">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="AI 摄影教练首页">AI Photography Coach</a>
-        <span className="privacy-note">单图分析 · 不保存照片</span>
       </header>
 
       <section className="hero" id="top" aria-labelledby="hero-title">

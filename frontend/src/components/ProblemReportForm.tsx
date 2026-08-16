@@ -67,30 +67,38 @@ export function ProblemReportForm({ analysisId }: ProblemReportFormProps) {
     <form className="problem-report" onSubmit={handleSubmit}>
       <p className="eyebrow">遇到问题？</p>
       <h2>告诉我们</h2>
-      <p className="problem-report-hint">
-        不需要姓名或联系方式。反馈会匿名进入待处理队列，帮助改进报告质量。
-      </p>
       <div className="problem-report-row">
-        <label>
-          问题类型
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value as ProblemCategory)}
-          >
-            {CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="problem-report-select-field">
+          <label htmlFor="problem-category">问题类型</label>
+          <span className="problem-report-select-wrap">
+            <select
+              id="problem-category"
+              value={category}
+              onChange={(event) => setCategory(event.target.value as ProblemCategory)}
+            >
+              {CATEGORY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m6 8 4 4 4-4" />
+            </svg>
+          </span>
+        </div>
         <label className="problem-report-checkbox">
           <input
             type="checkbox"
             checked={includeMetadata}
             onChange={(event) => setIncludeMetadata(event.target.checked)}
           />
-          附带本次分析的运行信息（模型、版本、耗时，不含照片）
+          <span className="problem-report-checkmark" aria-hidden="true">
+            <svg viewBox="0 0 16 16">
+              <path d="m3.5 8 3 3 6-6" />
+            </svg>
+          </span>
+          <span>附带本次分析的运行信息（模型、版本、耗时，不含照片）</span>
         </label>
       </div>
       <textarea
