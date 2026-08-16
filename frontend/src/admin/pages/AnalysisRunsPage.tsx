@@ -7,6 +7,7 @@ import type {
   AnalysisRunPage,
   AnalysisRunStatus,
 } from '../types'
+import type { PhotographyDimensions } from '../../types'
 
 const STATUS_LABELS: Record<AnalysisRunStatus, string> = {
   reserved: '已预占',
@@ -34,6 +35,17 @@ const EMPTY_FILTERS: Filters = {
   error_code: '',
   has_down_vote: false,
 }
+
+const DIMENSION_ROWS: {
+  key: keyof PhotographyDimensions
+  label: string
+}[] = [
+  { key: 'composition', label: '构图' },
+  { key: 'lighting', label: '光影' },
+  { key: 'color', label: '色彩' },
+  { key: 'subject_expression', label: '主体表达' },
+  { key: 'visual_storytelling', label: '视觉叙事' },
+]
 
 export default function AnalysisRunsPage() {
   const [page, setPage] = useState<AnalysisRunPage | null>(null)
@@ -79,10 +91,6 @@ export default function AnalysisRunsPage() {
       setError(caught instanceof Error ? caught.message : '加载详情失败。')
     }
   }
-
-  const report = detail?.report as
-    | { dimensions?: { dimension?: string; rating?: number; summary?: string }[] }
-    | null
 
   return (
     <section>
@@ -247,7 +255,7 @@ export default function AnalysisRunsPage() {
                 : new Date(detail.report_retained_until).toLocaleString()}
             </dd>
           </dl>
-          {report !== null && report !== undefined && (
+          {detail.report !== null && (
             <table className="admin-table">
               <thead>
                 <tr>
@@ -257,17 +265,20 @@ export default function AnalysisRunsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(report.dimensions ?? []).map((dimension) => (
-                  <tr key={dimension.dimension}>
-                    <td>{dimension.dimension}</td>
-                    <td>{dimension.rating}</td>
-                    <td>{dimension.summary}</td>
-                  </tr>
-                ))}
+                {DIMENSION_ROWS.map(({ key, label }) => {
+                  const dimension = detail.report?.dimensions[key]
+                  return (
+                    <tr key={key}>
+                      <td>{label}</td>
+                      <td>{dimension?.rating ?? '—'}</td>
+                      <td>{dimension?.summary ?? '—'}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
-          {report === null && (
+          {detail.report === null && (
             <p className="admin-muted">报告内容已按保留期清理。</p>
           )}
         </section>

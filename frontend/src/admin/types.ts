@@ -1,5 +1,7 @@
 /** TypeScript contracts mirroring src/photography_coach/schemas/admin.py. */
 
+import type { AnalysisMetadata, PhotographyReport } from '../types'
+
 export type AccessMode = 'open' | 'code_required' | 'closed'
 
 export interface ErrorBody {
@@ -105,8 +107,8 @@ export interface AnalysisRunSummary {
 
 export interface AnalysisRunDetail extends AnalysisRunSummary {
   shooting_intent: string | null
-  metadata: unknown
-  report: unknown
+  metadata: AnalysisMetadata | null
+  report: PhotographyReport | null
   report_retained_until: string | null
   sanitized_diagnostic: string | null
 }
