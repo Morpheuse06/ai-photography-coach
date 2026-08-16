@@ -112,7 +112,11 @@ class ControlPlaneAnalysisService:
         if existing_future is not None:
             try:
                 return await asyncio.wait_for(
-                    existing_future,
+                    # wait_for normally cancels its awaitable on timeout.
+                    # This Future is shared by every retry, so protect it:
+                    # one impatient client must not cancel the real analysis
+                    # or the other clients waiting for it.
+                    asyncio.shield(existing_future),
                     timeout=self._in_flight_wait_seconds,
                 )
             except TimeoutError:

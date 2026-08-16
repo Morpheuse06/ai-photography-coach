@@ -150,6 +150,7 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
         per_source_hour_limit: int | None = 1000,
         rag_service=None,
         registry: AnalysisResponseRegistry | None = None,
+        in_flight_wait_seconds: float = 30,
     ) -> tuple[ControlPlaneAnalysisService, AsyncSession]:
         session = self.session_factory()
         self._sessions.append(session)
@@ -165,7 +166,7 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
             ),
             source_rate_limiter=SourceRateLimiter(),
             registry=registry or AnalysisResponseRegistry(),
-            in_flight_wait_seconds=30,
+            in_flight_wait_seconds=in_flight_wait_seconds,
         )
         return service, session
 
@@ -359,6 +360,35 @@ class ControlPlaneServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             all(isinstance(r, ModelTimeoutError) for r in results)
         )
+
+    async def test_waiter_timeout_does_not_cancel_shared_analysis(self) -> None:
+        rag = _GatedRagService()
+        registry = AnalysisResponseRegistry()
+        service_a, _ = self.service(
+            rag_service=rag,
+            registry=registry,
+            in_flight_wait_seconds=0.01,
+        )
+        service_b, _ = self.service(
+            rag_service=rag,
+            registry=registry,
+            in_flight_wait_seconds=0.01,
+        )
+
+        owner = asyncio.create_task(self._run(service_a, key="wait-timeout"))
+        while rag.entered == 0:
+            await asyncio.sleep(0.001)
+
+        with self.assertRaises(ControlPlaneUnavailableError):
+            await self._run(service_b, key="wait-timeout")
+
+        in_flight = next(iter(registry._futures.values()))
+        self.assertFalse(in_flight.cancelled())
+
+        rag.gate.set()
+        response = await owner
+        self.assertIsNotNone(response.interaction)
+        self.assertEqual(rag.calls, 1)
 
     async def test_commit_failure_after_success_keeps_reservation(self) -> None:
         """When quota confirmation fails after the report is stored, the
