@@ -5,6 +5,13 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+from photography_coach.sqlite_compat import configure_sqlite_for_chroma
+
+# Chroma requires SQLite 3.35+, while some supported Linux distributions link
+# Python to an older system SQLite. Select the project-local compatibility
+# binding before importing Chroma so the operating system remains untouched.
+configure_sqlite_for_chroma()
+
 import chromadb
 from chromadb.config import Settings
 
